@@ -28,7 +28,10 @@ def create_interactive_shell(agent):
     print("LiteAgent Interactive Shell")
     print("=" * 60)
     print(f"模型：{agent.model_path}")
-    print(f"可用技能：{agent.available_skills}")
+    if agent._skill_manager:
+        print(f"可用技能：{', '.join(agent.get_available_skills())}")
+    else:
+        print("可用技能：无")
     print("提示符：输入 'quit' 或 'exit' 退出，'history' 查看历史")
     print("=" * 60)
 
@@ -56,9 +59,20 @@ def create_interactive_shell(agent):
                     print("\n--- 对话历史 ---")
                     for i, (inp, out) in enumerate(history, 1):
                         print(f"\n{i}. {BLUE}您：{inp}{END}")
-                        json_data = ast.literal_eval(out)
-                        answer = json_data[0].get('text', out)
-                        print(f"   {YELLOW}助手：{answer}{END}")
+                        # 显示原始响应或解析后的内容
+                        cleaned = out.strip().rstrip(',')
+                        try:
+                            if cleaned.startswith('[') and cleaned.endswith(']'):
+                                json_data = ast.literal_eval(cleaned)
+                                if isinstance(json_data, list) and len(json_data) > 0:
+                                    if isinstance(json_data[0], dict):
+                                        answer = json_data[0].get('text', out)
+                                        print(f"   {YELLOW}助手：{answer}{END}")
+                                        continue
+                        except (ValueError, SyntaxError):
+                            pass
+                        # 显示原始响应
+                        print(f"   {YELLOW}助手：{out}{END}")
                 continue
 
             if user_input.lower() == 'clear':
@@ -86,9 +100,31 @@ def create_interactive_shell(agent):
             # 发送消息获取响应
             response = agent.chat(user_input)
 
-            # 显示响应
-            json_data = ast.literal_eval(response)
-            print(f"助手：{YELLOW}{json_data[0].get('text', response)}{END}")
+            # 显示响应 - 检查返回格式
+            if isinstance(response, str):
+                # 尝试解析可能的 JSON 格式响应
+                cleaned = response.strip().rstrip(',')
+                if cleaned.startswith('[') and cleaned.endswith(']'):
+                    # 可能是列表格式的 JSON，尝试解析
+                    try:
+                        json_data = ast.literal_eval(cleaned)
+                        if isinstance(json_data, list) and len(json_data) > 0:
+                            # 提取第一个元素的 text 字段
+                            if isinstance(json_data[0], dict):
+                                answer = json_data[0].get('text', str(response))
+                            else:
+                                answer = str(response)
+                        else:
+                            answer = str(response)
+                    except (ValueError, SyntaxError):
+                        # 不是有效 JSON，直接显示
+                        answer = str(response)
+                else:
+                    # 不是列表，直接显示
+                    answer = str(response)
+            else:
+                answer = str(response)
+            print(f"助手：{YELLOW}{answer}{END}")
 
             # 保存到历史
             history.append((user_input, response))

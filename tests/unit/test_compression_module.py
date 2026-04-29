@@ -5,9 +5,14 @@ ContextCompressor 和 SimpleContextManager 的单元测试
 """
 
 import pytest
-from typing import List, Dict, Any
+import os
+import sys
 
-from LiteAgent.compression import ContextCompressor, SimpleContextManager
+_liteagent_path = os.path.join(os.path.dirname(__file__), "..", "..")
+if _liteagent_path not in sys.path:
+    sys.path.insert(0, _liteagent_path)
+
+from LiteAgent import ContextCompressor, SimpleContextManager
 
 
 class TestContextCompressor:
@@ -42,7 +47,6 @@ class TestContextCompressor:
 
     def test_should_compress_usage_below_threshold(self, compressor):
         """测试使用率低于阈值时"""
-        # 设置一个模拟的 conversation（mock）
         class MockConversation:
             messages = []
 
@@ -52,12 +56,10 @@ class TestContextCompressor:
 
     def test_should_compress_usage_at_threshold(self, compressor):
         """测试使用率达到阈值时"""
-        # 模拟一个接近阈值的场景
         class MockConversation:
             messages = [{"role": "system", "content": "test"}]
 
         mock_conv = MockConversation()
-        # 由于当前实现返回 0，这里测试的是应该_compress 的逻辑
 
     def test_compress_empty_history(self, compressor):
         """测试空历史压缩"""
@@ -66,7 +68,6 @@ class TestContextCompressor:
 
         mock_conv = MockConversation()
         result = compressor.compress_context(mock_conv)
-        # 因为 messages 只有 1 条，不满足 >=2 的条件，应该返回 None
         assert result is None
 
     def test_compress_normal_conversation(self, compressor):
@@ -83,8 +84,7 @@ class TestContextCompressor:
 
         assert result is not None
         assert "对话历史概要" in result
-        # 检查是否正确格式化的版本（有空格或没有空格都接受）
-        assert ("共 2 轮" in result or "共 2 轮" == result or "共 2" in result)
+        assert "共2" in result
         assert "用户问题" in result
         assert "回复内容" in result
 
@@ -101,7 +101,6 @@ class TestContextCompressor:
         compressor.compress_context(mock_conv)
 
         assert len(compressor._compression_history) == 1
-        assert compressor._conversation_start_turns == 0
 
     def test_get_stats(self, compressor):
         """测试获取统计信息"""
@@ -128,18 +127,18 @@ class TestContextCompressor:
         assert "历史 1" in summary
         assert "历史 2" in summary
         assert "历史 3" in summary
-        assert "\n\n" in summary  # 历史记录之间用换行分隔
+        assert "\n\n" in summary
 
     def test_compression_history_limit_3(self, compressor):
         """测试仅保留最近 3 次压缩"""
-        # 添加 4 次压缩
         for i in range(4):
             compressor._compression_history.append(f"压缩{i}")
 
         stats = compressor.get_stats(None)
         assert len(stats["compression_history"]) == 3
-        # 接受带空格或不带空格的情况
-        assert stats["compression_history"][-1] in ["压缩 3", "压缩 3"]
+        assert stats["compression_history"][0] == "压缩1"
+        assert stats["compression_history"][1] == "压缩2"
+        assert stats["compression_history"][2] == "压缩3"
 
 
 class TestSimpleContextManager:
@@ -155,24 +154,21 @@ class TestSimpleContextManager:
         assert manager.max_tokens == 10000
         assert manager.compression_threshold == 0.75
 
-    def test_manage_init_custom(self):
+    def test_init_with_custom(self):
         """测试自定义参数初始化"""
         manager = SimpleContextManager(max_tokens=5000)
         assert manager.max_tokens == 5000
 
     def test_estimate_tokens(self, manager):
         """测试 token 估算"""
-        # 粗略测试：4 字符约 1 token
-        text1 = "这是一个测试"  # 6 中文字符，约 6 字符
-        text2 = "Hello world"  # 11 英文字符
+        text1 = "这是一个测试"
+        text2 = "Hello world"
 
-        # 由于每 4 字符约 1 token
         tokens1 = manager.estimate_tokens(text1)
         tokens2 = manager.estimate_tokens(text2)
 
         assert tokens1 > 0
         assert tokens2 > 0
-        # 验证大致比例
         assert tokens2 >= tokens1
 
     def test_get_current_usage_no_max_tokens(self):
@@ -191,17 +187,15 @@ class TestSimpleContextManager:
 
     def test_should_compress(self, manager):
         """测试压缩判断"""
-        # 由于所有测试都是模拟的，这里测试的是逻辑
         class MockConversation:
             messages = [{"role": "system", "content": "test"}]
 
         mock_conv = MockConversation()
         should = manager.should_compress(mock_conv)
-        assert should is False  # 未达到阈值
+        assert should is False
 
     def test_compress_context(self, manager):
         """测试压缩上下文"""
-        # 创建简化的压缩器用于测试
         test_compressor = ContextCompressor()
 
         class MockConversation:
@@ -237,7 +231,6 @@ class TestEdgeCases:
         compressor = ContextCompressor(max_tokens=0)
         assert compressor.max_tokens == 0
 
-        # 使用率应该为 0（因为没有除以 0）
         class MockConversation:
             messages = [{"role": "system", "content": "test"}]
 

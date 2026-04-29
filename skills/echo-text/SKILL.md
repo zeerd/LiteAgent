@@ -1,9 +1,6 @@
 ---
-name: echo-test
-description: Echo the input text back to the user. A test skill for LiteAgent framework.
-metadata:
-  version: "1.0"
-  type: text-only
+name: echo-text
+description: Echo the input text back to the user. When Use: `echo` in the prompt.
 ---
 
 # Echo Test Skill

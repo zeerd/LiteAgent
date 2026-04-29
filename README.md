@@ -36,14 +36,14 @@ LiteAgent_Planner/
 ### 运行测试
 
 ```bash
-python question.py --model gemma-4-E2B-it.litertlm --skill-dir skills/ "Who are you?"
+python question.py --model models/gemma-4-E2B-it.litertlm --skill-dir skills/ "Who are you?"
 ```
 
 ### 交互式 Shell
 
 ```bash
 cd benchmarks/
-python interactive.py --model gemma-4-E2B-it.litertlm --skill-dir skills/
+python interactive.py --model models/gemma-4-E2B-it.litertlm --skill-dir skills/
 ```
 
 ## 📚 技能文件

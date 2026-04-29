@@ -18,7 +18,14 @@ import ast
 import argparse
 
 from LiteAgent import LiteAgent
+import logging
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('Question')
 
 _liteagent_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _liteagent_path)
@@ -114,21 +121,22 @@ def main():
     # 获取响应
     try:
         response = agent.chat(args.prompt)
+        logger.setLevel(logging.INFO)
 
         # 输出结果
         if args.output == 'json':
-            print(response)
+            logger.info('助手：'+response)
         else:
             # 解析 JSON 输出纯文本
             try:
                 json_data = ast.literal_eval(response)
                 text = json_data[0].get('text', response)
-                print(text)
+                logger.info('助手：'+text)
             except Exception:
-                print(response)
+                logger.info('助手：'+response)
 
     except Exception as e:
-        print(f"❌ 推理失败：{e}")
+        logger.error(f"❌ 推理失败：{e}")
         sys.exit(1)
 
 

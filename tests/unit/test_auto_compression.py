@@ -1,103 +1,95 @@
 #!/usr/bin/env python3
 """
-LiteAgent 上下文自动压缩测试
+LiteAgent 上下文自动压缩单元测试
 
-测试压缩功能：
-1. 创建 Agent，设置压缩阈值
-2. 发送多条消息，触发压缩
-3. 验证压缩后上下文正常继续
+使用 Mock 对象绕开真实 litert-lm 接口，纯逻辑测试
 """
 
 import sys
 import os
+import pytest
 
 _liteagent_path = "/home/node/.openclaw/workspace/LiteAgent_Planner"
 if _liteagent_path not in sys.path:
     sys.path.insert(0, _liteagent_path)
 
-from LiteAgent import LiteAgent
+from LiteAgent import ContextCompressor, SimpleContextManager
 
 
-def test_auto_compression():
-    """测试自动上下文压缩功能"""
-
-    print("=" * 70)
-    print("LiteAgent 上下文自动压缩测试")
-    print("=" * 70)
-
-    # 1. 测试 A：压缩阈值设为 50%，快速触发压缩
-    print("\n['测试 A'] 压缩阈值=50%，测试自动压缩触发")
-    print("-" * 70)
-
-    test_text = "这是一个测试文本。" * 500  # 约 375 tokens
-
-    try:
-        agent = LiteAgent(
-            model_path="/home/node/.openclaw/workspace/LiteAgent/gemma-4-E2B-it.litertlm",
-            temperature=0.7,
-            max_tokens=1000,  # 设置较小限制
-            compression_threshold=0.5  # 50% 触发压缩
-        )
-
-        for i in range(1, 20):
-            response = agent.chat(f"第{i}轮" + test_text)
-
-            # 打印统计
-            stats = agent.get_context_stats()
-            if i % 5 == 0 or stats["compression_count"] > 0:
-                print(f"轮次 {i}: 使用率 {stats['current_usage']:.2%}, "
-                      f"压缩次数 {stats['compression_count']}")
-
-        print(f"\n✅ 测试完成 - 最终压缩次数：{agent.get_context_stats()['compression_count']}")
-
-    except Exception as e:
-        print(f"\n❌ 测试 A 失败：{e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-    # 2. 测试 B：验证压缩后上下文是否正常工作
-    print("\n['测试 B'] 验证压缩后对话连续性")
-    print("-" * 70)
-
-    try:
-        agent2 = LiteAgent(
-            model_path="/home/node/.openclaw/workspace/LiteAgent/gemma-4-E2B-it.litertlm",
-            temperature=0.7,
-            max_tokens=2000,
-            compression_threshold=0.7
-        )
-
-        # 发送一些普通问题
-        for i in range(1, 10):
-            if i <= 5:
-                agent2.chat(f"第{i}个问题：你是谁？")
-            else:
-                agent2.chat(f"第{i}个问题：你能记住之前的对话吗？")
-
-        # 检查是否触发了压缩
-        stats = agent2.get_context_stats()
-        print(f"对话轮次：~{stats['conversation_turns']}")
-        print(f"压缩次数：{stats['compression_count']}")
-
-        # 询问模型是否记得压缩前的对话
-        last_response = agent2.chat("你记得我们之前聊了什么吗？请总结一下。")
-        print(f"\n总结询问：{last_response[:300]}...")
-
-        print("\n✅ 测试 B 完成")
-
-    except Exception as e:
-        print(f"\n❌ 测试 B 失败：{e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-    print("\n" + "=" * 70)
-    print("所有测试完成!")
-    print("=" * 70)
-    return True
+class MockConversation:
+    """Mock Conversation 对象，用于纯单元测试"""
+    def __init__(self, messages=None):
+        self.messages = messages or []
+        self.extra_context = None
 
 
-if __name__ == "__main__":
-    success = test_auto_compression()
-    sys.exit(0 if success else 1)
+class TestAutoCompressionLogic:
+    """测试自动压缩的纯逻辑（不用真实模型）"""
+
+    @pytest.fixture
+    def compressor(self):
+        """创建压缩器实例"""
+        return ContextCompressor(max_tokens=10000, compression_threshold=0.5)
+
+    def test_get_current_usage_above_threshold(self, compressor):
+        """测试获取使用率 - 超过阈值"""
+        conv = MockConversation([
+            {"role": "system", "content": "x" * 25000},  # 约 6250 tokens
+            {"role": "user", "content": "x" * 25000},
+        ])
+        usage = compressor.get_current_usage(conv)
+        # 6250*2/10000 = 0.625 > 0.5 (50%)
+        assert usage >= 0.5, f"使用率 {usage} 应该达到阈值 0.5"
+
+    def test_get_current_usage_below_threshold(self, compressor):
+        """测试获取使用率 - 低于阈值"""
+        conv = MockConversation([
+            {"role": "system", "content": "小文本"},
+        ])
+        usage = compressor.get_current_usage(conv)
+        assert usage < 0.5, f"使用率 {usage} 应该低于阈值 0.5"
+
+    def test_compress_with_small_context(self, compressor):
+        """测试小上下文压缩"""
+        conv = MockConversation([
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "user input"},
+            {"role": "assistant", "content": "assistant response"},
+        ])
+        result = compressor.compress_context(conv)
+        assert result is not None
+        assert "对话历史概要" in result
+
+
+class TestSimpleContextManagerMock:
+    """测试 SimpleContextManager 纯逻辑"""
+
+    def test_get_stats_structure(self):
+        """测试统计信息结构"""
+        manager = SimpleContextManager(max_tokens=10000)
+        conv = MockConversation([
+            {"role": "system", "content": "test"},
+        ])
+        stats = manager.get_stats(conv)
+        
+        assert "max_tokens" in stats
+        assert "compression_threshold" in stats
+        assert "current_usage" in stats
+        assert "compression_count" in stats
+        assert "conversation_turns" in stats
+
+    def test_compression_logic(self):
+        """测试压缩逻辑"""
+        manager = SimpleContextManager(max_tokens=1000, compression_threshold=0.5)
+        
+        # 小上下文
+        small_conv = MockConversation([{"role": "system", "content": "small"}])
+        assert manager.should_compress(small_conv) is False
+        
+        # 大上下文（构造一个达到阈值的）
+        large_text = "x" * 2500  # 约 625 tokens，625/1000 = 0.625 > 0.5
+        large_conv = MockConversation([
+            {"role": "system", "content": large_text},
+        ])
+        usage = manager.get_current_usage(large_conv)
+        assert usage >= 0.5

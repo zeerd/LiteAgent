@@ -144,6 +144,7 @@ class SkillManager:
                 continue
 
             skill_file = os.path.join(item.path, "SKILL.md")
+
             if not os.path.exists(skill_file):
                 continue
 
@@ -186,53 +187,37 @@ class PromptInjector:
 
     @staticmethod
     def build_instrumented_prompt(skills: List[Skill],
-                                  include_instructions: bool = True) -> str:
+                                  include_instructions: bool = False) -> str:
         """
         构建注入技能的 system prompt
 
         Args:
             skills: 技能列表
-            include_instructions: 是否包含完整的技能指令 (默认 True)
+            include_instructions: 是否包含完整的技能指令 (默认 False，仅包含 name/description)
 
         Returns:
             完整的 system prompt
         """
-        if include_instructions:
-            # 注入完整技能描述和指令给用户
-            skills_text = PromptInjector._format_skills_with_instructions(
-                skills
-            )
-        else:
-            # 仅注入技能名称和描述 (精简版)
-            skills_text = PromptInjector._format_skills(skills)
+        # 仅注入技能名称和描述到 system prompt
+        skills_text = PromptInjector._format_skills(skills)
 
         base_prompt = """
-You are a helpful AI assistant powered by LiteRT-LM.
-You have access to the following skills:
+You are an AI assistant that helps users by answering questions and completes tasks using skills. For EVERY new task or request or question, you MUST execute the following steps in exact order. You MUST NOT skip any steps.
+
+CRITICAL RULE: You MUST execute all steps silently. Do NOT generate or output any internal thoughts, reasoning, explanations, or intermediate text at ANY step.
+
+1. First, find the most relevant skill from the following list:
 
 {skills}
 
-When a user's request matches one of these skills, you can leverage the skill
-capabilities to provide better responses.
-Use the skill's instructions to guide your behavior and provide accurate
-responses.
+After this step you MUST go to next step. You MUST NOT use `run_intent` under any circumstances at this step.
 
-Respond to user queries in a helpful, accurate, and safe manner."""
+2. If a relevant skill exists, use the `load_skill` tool to read its instructions. You MUST NOT use `run_intent` under any circumstances at this step. Give pure string only when use skill-name as parameter of `load_skill`.
 
-        return base_prompt.format(skills=skills_text)
+3. Follow the skill's instructions exactly to complete the task. You MUST NOT output any intermediate thoughts or status updates. No exceptions! Output ONLY the final result when successful. It should contain one-sentence summary of the action taken, and the final result of the skill.
+"""
 
-    @staticmethod
-    def _format_skills_with_instructions(skills: List[Skill]) -> str:
-        """格式化技能列表为文本，包含完整指令"""
-        output = []
-        for skill in sorted(skills, key=lambda s: s.name):
-            output.append(f"- **{skill.name}**: {skill.description}")
-            if skill.instructions:
-                output.append(
-                    f"  - Instructions: {skill.instructions[:200]}"
-                    f"{'...' if len(skill.instructions) > 200 else ''} ...")
-        return "\n".join(output)
-
+        return base_prompt.format(skills=skills_text if skills_text else "(无可用技能)")
     @staticmethod
     def _format_skills(skills: List[Skill]) -> str:
         """格式化技能列表为文本 (精简版)"""
@@ -242,23 +227,40 @@ Respond to user queries in a helpful, accurate, and safe manner."""
             for skill in sorted_skills
         ])
 
-    @classmethod
-    def inject_skill_instructions(cls, skill: Skill,
-                                  instructions: bool = True) -> str:
-        """
-        将特定技能的 instructions 注入到响应中
+# 工具调用结果格式化模板
+LOAD_SKILL_TOOL_RESPONSE = """
+## ✅ 已加载技能：{name}
 
-        Args:
-            skill: 技能对象
-            instructions: 是否包含 instructions 内容
+**描述**: {description}
 
-        Returns:
-            包含技能指导的提示文本
-        """
-        text = f"** Skill: {skill.name}**\n"
-        text += f"** Description: {skill.description}**\n"
-        if skill.metadata:
-            text += f"** Metadata: {skill.metadata}**\n"
-        if instructions and skill.instructions:
-            text += f"\n** Instructions:\n{skill.instructions}\n**\n"
-        return text
+**元数据**:
+{metadata}
+
+---
+
+{instructions}
+"""
+
+
+def format_load_skill_result(name: str, description: str, metadata: dict,
+                             instructions: str) -> str:
+    """
+    格式化 load_skill 工具调用的结果
+
+    Args:
+        name: 技能名称
+        description: 技能描述
+        metadata: 技能元数据
+        instructions: 技能完整指令
+
+    Returns:
+        格式化后的技能信息文本
+    """
+    metadata_text = "\n".join([f"  - {k}: {v}" for k, v in metadata.items()])
+
+    return LOAD_SKILL_TOOL_RESPONSE.strip().format(
+        name=name,
+        description=description,
+        metadata=metadata_text if metadata_text else "无",
+        instructions=instructions.strip()
+    )

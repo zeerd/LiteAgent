@@ -39,6 +39,8 @@ default.profraw
 # Test artifacts
 *.prof
 test_output/
+.tmp
+models/*.litertlm*
 
 # Logs
 *.log
