@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "text_adventure"
+version = "0.0.1"
+description = "Text Adventure Agent"
+readme = ""
+authors = [
+    { name = "Charles Chan", email = "charles@zeerd.com" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "litert-lm"
+]
+
+[tool.setuptools]
+packages = ["text_adventure"]
+include-package-data = true
+

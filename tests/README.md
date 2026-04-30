@@ -1,12 +1,12 @@
-# LiteAgent 测试脚本
+# text_adventure 测试脚本
 
-这个目录包含 LiteAgent 的各种测试脚本。
+这个目录包含 text_adventure 的各种测试脚本。
 
 ## 测试脚本列表
 
 ### 核心测试
 
-- **`test_agent.py`** - LiteAgent 基础功能测试
+- **`test_agent.py`** - text_adventure 基础功能测试
   - 测试 SKILL.md 解析
   - 测试技能注入 system prompt
   - 验证基本对话功能
@@ -38,7 +38,7 @@
 
 ```bash
 # 进入项目目录
-cd /home/node/.openclaw/workspace/LiteAgent_Planner
+cd /home/node/.openclaw/workspace/text_adventure_Planner
 
 # 使用虚拟环境
 source .venv/bin/activate
@@ -55,7 +55,7 @@ python tests/test_context_max_tokens.py --max-tokens 32768 --turns 20
 
 ## 测试结果总结
 
-根据测试，LiteAgent 的 Context Length 限制：
+根据测试，text_adventure 的 Context Length 限制：
 - **不是固定的 4096**
 - **由 `max_tokens` 参数控制**
 - **实际约等于配置的 max_tokens 值**

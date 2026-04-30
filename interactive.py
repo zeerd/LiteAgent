@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LiteAgent 交互式 Shell
+text_adventure 交互式 Shell
 
 使用方法:
     python interactive.py --model /to/model.litertlm --skill-dir /to/skills
@@ -15,17 +15,13 @@ import os
 import ast
 import argparse
 
-from LiteAgent import LiteAgent
-
-
-_liteagent_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _liteagent_path)
+from text_adventure import text_adventure
 
 
 def create_interactive_shell(agent):
     """创建交互式对话 Shell"""
     print("=" * 60)
-    print("LiteAgent Interactive Shell")
+    print("text_adventure Interactive Shell")
     print("=" * 60)
     print(f"模型：{agent.model_path}")
     if agent._skill_manager:
@@ -140,7 +136,7 @@ def create_interactive_shell(agent):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="LiteAgent 交互式 Shell")
+    parser = argparse.ArgumentParser(description="text_adventure 交互式 Shell")
     parser.add_argument(
         "--model",
         type=str,
@@ -169,7 +165,7 @@ def main():
         sys.exit(1)
 
     # 创建 Agent
-    agent = LiteAgent(
+    agent = text_adventure(
         model_path=args.model,
         skill_dir=args.skill_dir,
         temperature=args.temperature,

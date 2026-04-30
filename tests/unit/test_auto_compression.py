@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LiteAgent 上下文自动压缩单元测试
+text_adventure 上下文自动压缩单元测试
 
 使用 Mock 对象绕开真实 litert-lm 接口，纯逻辑测试
 """
@@ -9,11 +9,11 @@ import sys
 import os
 import pytest
 
-_liteagent_path = "/home/node/.openclaw/workspace/LiteAgent_Planner"
+_liteagent_path = "/home/node/.openclaw/workspace/text_adventure_Planner"
 if _liteagent_path not in sys.path:
     sys.path.insert(0, _liteagent_path)
 
-from LiteAgent import ContextCompressor, SimpleContextManager
+from text_adventure import ContextCompressor
 
 
 class MockConversation:
@@ -60,36 +60,3 @@ class TestAutoCompressionLogic:
         assert result is not None
         assert "对话历史概要" in result
 
-
-class TestSimpleContextManagerMock:
-    """测试 SimpleContextManager 纯逻辑"""
-
-    def test_get_stats_structure(self):
-        """测试统计信息结构"""
-        manager = SimpleContextManager(max_tokens=10000)
-        conv = MockConversation([
-            {"role": "system", "content": "test"},
-        ])
-        stats = manager.get_stats(conv)
-        
-        assert "max_tokens" in stats
-        assert "compression_threshold" in stats
-        assert "current_usage" in stats
-        assert "compression_count" in stats
-        assert "conversation_turns" in stats
-
-    def test_compression_logic(self):
-        """测试压缩逻辑"""
-        manager = SimpleContextManager(max_tokens=1000, compression_threshold=0.5)
-        
-        # 小上下文
-        small_conv = MockConversation([{"role": "system", "content": "small"}])
-        assert manager.should_compress(small_conv) is False
-        
-        # 大上下文（构造一个达到阈值的）
-        large_text = "x" * 2500  # 约 625 tokens，625/1000 = 0.625 > 0.5
-        large_conv = MockConversation([
-            {"role": "system", "content": large_text},
-        ])
-        usage = manager.get_current_usage(large_conv)
-        assert usage >= 0.5

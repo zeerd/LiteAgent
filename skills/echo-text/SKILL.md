@@ -5,7 +5,7 @@ description: Echo the input text back to the user. When Use: `echo` in the promp
 
 # Echo Test Skill
 
-This is a simple echo skill designed for testing the LiteAgent framework's SKILL.md functionality.
+This is a simple echo skill designed for testing the text_adventure framework's SKILL.md functionality.
 
 ## Instructions
 

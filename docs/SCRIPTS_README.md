@@ -1,4 +1,4 @@
-# LiteAgent 脚本使用指南
+# text_adventure 脚本使用指南
 
 ## 可用脚本
 
@@ -113,19 +113,19 @@ python question.py "你好"
 ### 示例 1: 单次询问
 ```bash
 python question.py "你是谁？" \
-    --model /home/node/.openclaw/workspace/LiteAgent/gemma-4-E2B-it.litertlm
+    --model /home/node/.openclaw/workspace/text_adventure/gemma-4-E2B-it.litertlm
 ```
 
 ### 示例 2: 多轮对话
 ```bash
 python interactive.py \
-    --model /home/node/.openclaw/workspace/LiteAgent/gemma-4-E2B-it.litertlm \
+    --model /home/node/.openclaw/workspace/text_adventure/gemma-4-E2B-it.litertlm \
     --skill-dir skills/
 ```
 
 ### 示例 3: 使用环境变量
 ```bash
-export LITEAGENT_MODEL_PATH=/home/node/.openclaw/workspace/LiteAgent/gemma-4-E2B-it.litertlm
+export LITEAGENT_MODEL_PATH=/home/node/.openclaw/workspace/text_adventure/gemma-4-E2B-it.litertlm
 export LITEAGENT_MAX_TOKENS=5000
 python question.py "请解释一下机器学习"
 ```

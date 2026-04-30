@@ -8,11 +8,11 @@
 import sys
 import os
 
-_liteagent_path = "/home/node/.openclaw/workspace/LiteAgent_Planner"
+_liteagent_path = "/home/node/.openclaw/workspace/text_adventure_Planner"
 if _liteagent_path not in sys.path:
     sys.path.insert(0, _liteagent_path)
 
-from LiteAgent.compression import ContextCompressor
+from text_adventure.compression import ContextCompressor
 
 
 # Mock conversation 对象

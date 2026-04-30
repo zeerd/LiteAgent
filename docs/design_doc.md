@@ -1,4 +1,4 @@
-# Python LiteAgent 框架设计文档
+# Python text_adventure 框架设计文档
 
 ## 一、SKILL.md 解析机制
 
@@ -68,11 +68,11 @@ class SkillManager:
     def get_skill_by_name(name: str) -> Skill | None
 ```
 
-### 2.3 LiteAgent 类
+### 2.3 text_adventure 类
 
 核心接口设计:
 ```python
-class LiteAgent:
+class text_adventure:
     def __init__(
         self,
         model_path: str,

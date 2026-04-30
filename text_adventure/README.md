@@ -1,10 +1,12 @@
-# LiteAgent 模块结构
+# text_adventure 模块结构
+
+**注意：本目录内严禁出现任何测试代码！**
 
 ## 文件组织
 
 ```
-LiteAgent/
-├── agent.py           # LiteAgent 核心类 - AI Agent 主逻辑
+text_adventure/
+├── agent.py           # text_adventure 核心类 - AI Agent 主逻辑
 ├── compression.py     # 上下文压缩模块 - 自动压缩和会话管理
 ├── skill/             # 技能系统模块
 │   ├── __init__.py
@@ -16,7 +18,7 @@ LiteAgent/
 
 ## 模块职责
 
-### 1. **agent.py** - LiteAgent 核心类
+### 1. **agent.py** - text_adventure 核心类
 
 **职责**: AI Agent 的主逻辑实现，负责任务执行和人机交互。
 
@@ -27,7 +29,7 @@ LiteAgent/
 - 上下文压缩协调器（调用 compression 模块）
 
 **类**:
-- `LiteAgent`: 主要 API 类
+- `text_adventure`: 主要 API 类
 
 ### 2. **compression.py** - 上下文自动压缩
 
@@ -44,7 +46,6 @@ LiteAgent/
   - `compress_context()`: 压缩对话历史
   - `reset_with_compressed_history()`: 重置会话
   - `get_stats()`: 获取统计信息
-- `SimpleContextManager`: 纯 Python 的简化版本（测试用途）
 
 ### 3. **skill/** - 技能系统
 
@@ -60,10 +61,10 @@ LiteAgent/
 ### 基础用法
 
 ```python
-from LiteAgent import LiteAgent
+from text_adventure import text_adventure
 
 # 初始化
-agent = LiteAgent(
+agent = text_adventure(
     model_path="/path/to/model.litertlm",
     skill_dir="/path/to/skills",  # 可选
     max_tokens=10000,
@@ -86,7 +87,7 @@ agent.close()
 ### 独立使用 ContextCompressor
 
 ```python
-from LiteAgent import ContextCompressor
+from text_adventure import ContextCompressor
 
 # 创建压缩器
 compressor = ContextCompressor(
@@ -114,7 +115,7 @@ stats = compressor.get_stats()
 ## 模块关系
 
 ```
-LiteAgent (agent.py)
+text_adventure (agent.py)
     ├── SkillManager (skill/skill_manager.py)
     ├── PromptInjector (skill/prompt_injector.py)
     └── ContextCompressor (compression.py)
@@ -122,7 +123,7 @@ LiteAgent (agent.py)
              └── reset_with_compressed_history()
 ```
 
-- `LiteAgent` 是主入口，包含所有功能
+- `text_adventure` 是主入口，包含所有功能
 - `SkillManager` 和 `PromptInjector` 处理技能系统
 - `ContextCompressor` 提供独立的重用压缩功能
 
@@ -131,9 +132,9 @@ LiteAgent (agent.py)
 1. **职责分离**: 压缩逻辑独立，易于测试
 2. **可重用性**: `ContextCompressor` 可用于其他项目
 3. **更易维护**: 各模块职责单一，修改影响小
-4. **灵活**: `SimpleContextManager` 可用于无 Engine 的环境
+4. **可测试性**: 提供测试专用类，便于单元和集成测试
 
 ## 版本
 
-- 当前版本：0.1.0
-- 最后更新：2026-04-24
+- 当前版本：0.2.0
+- 最后更新：2026-04-30

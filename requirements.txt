@@ -1,1 +1,5 @@
-litert-lm
+pytest
+pytest-cov
+pytest-asyncio
+flake8
+

@@ -1,4 +1,4 @@
-"""pytest 配置 - LiteAgent 测试"""
+"""pytest 配置 - text_adventure 测试"""
 import os
 import pytest
 
@@ -9,7 +9,7 @@ def pytest_addoption(parser):
         "--model",
         action="store",
         default=None,
-        help="LiteAgent 模型路径"
+        help="text_adventure 模型路径"
     )
     parser.addoption(
         "--skill-dir",

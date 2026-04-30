@@ -1,4 +1,4 @@
-# LiteAgent Python 实现规划
+# text_adventure Python 实现规划
 
 ## 1. 背景理解
 
@@ -22,7 +22,7 @@ LiteRT-LM 提供了 Python 接口:
 
 ## 2. 设计目标
 
-实现一个 Python 的 `LiteAgent` 框架，支持:
+实现一个 Python 的 `text_adventure` 框架，支持:
 1. **SKILL.md 加载**: 从目录读取并解析 SKILL.md 文件
 2. **技能注册**: 将技能与 LiteRT-LM 整合
 3. **Prompt 注入**: 将技能描述自动注入系统 prompt
@@ -31,12 +31,12 @@ LiteRT-LM 提供了 Python 接口:
 ## 3. 目录设计
 
 ```
-LiteAgent_Planner/
+text_adventure_Planner/
 ├── workplan.md                     # 本规划文档
 ├── design_doc.md                   # 详细设计文档
-├── LiteAgent/                       # 核心框架实现
+├── text_adventure/                       # 核心框架实现
 │   ├── __init__.py
-│   ├── agent.py                    # LiteAgent 主类
+│   ├── agent.py                    # text_adventure 主类
 │   ├── skill.py                    # SKILL.md 解析与技能管理
 │   └── engine.py                   # LiteRT-LM 引擎封装
 ├── skills/                    # 测试技能示例
@@ -63,10 +63,10 @@ class SkillManager:
     def get_skill_descriptions() -> str   # 返回可注入的格式
 ```
 
-### 4.2 LiteAgent (agent.py)
+### 4.2 text_adventure (agent.py)
 
 ```python
-class LiteAgent:
+class text_adventure:
     def __init__(
         model_path: str,
         skill_dir: str,
@@ -99,7 +99,7 @@ When the user provides text, simply repeat it back.
 
 ## 6. 测试流程
 
-1. 实例化 `LiteAgent(model_path, skill_dir)`
+1. 实例化 `text_adventure(model_path, skill_dir)`
 2. 加载 SKILL.md
 3. 注入 system prompt
 4. 发送 user prompt
@@ -116,6 +116,6 @@ When the user provides text, simply repeat it back.
 ## 8. 断点恢复
 
 如果工作中断，可从任意点继续:
-- 检查已完成文件的 `ls LiteAgent_Planner/LiteAgent/`
+- 检查已完成文件的 `ls text_adventure_Planner/text_adventure/`
 - 未完成的模块可在同一文件继续编写
 - 测试脚本支持增量开发 (先写基础功能再完善)

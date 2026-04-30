@@ -1,5 +1,5 @@
 #!/bin/bash
-# LiteAgent 功能测试运行脚本
+# text_adventure 功能测试运行脚本
 
 # 设置脚本所在目录
 export PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,15 +22,26 @@ else
 fi
 install -d .tmp
 
-export PYTHONPATH=$PROJECT_ROOT
 export LITERTLM_MODEL_PATH=$PROJECT_ROOT/models/gemma-4-E2B-it.litertlm
 export LITERTLM_SKILL_DIR=$PROJECT_ROOT/skills
 
 # 运行所有功能测试
 echo "========================================"
-echo "LiteAgent 功能测试运行器"
+echo "text_adventure 功能测试运行器"
 echo "========================================"
 echo ""
+
+if [ ! -z $1 ] ; then
+    python3 $1
+    result=$?
+
+    if [ $result -eq 0 ]; then
+        echo "✅ 测试通过：$1"
+    else
+        echo "❌ 测试失败：$1"
+    fi
+    exit $result
+fi
 
 # 遍历 tests/functional/目录中的所有测试
 for test_file in tests/functional/test_*.py; do

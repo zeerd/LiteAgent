@@ -19,11 +19,7 @@ else
     fi
 fi
 install -d .tmp
-
-export PYTHONPATH=$PROJECT_ROOT
-export LITERTLM_MODEL_PATH=$PROJECT_ROOT/models/gemma-4-E2B-it.litertlm
-export LITERTLM_SKILL_DIR=$PROJECT_ROOT/skills
-export
+pip install -e .
 
 pytest $PROJECT_ROOT/tests/unit/
 

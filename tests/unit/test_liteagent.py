@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LiteAgent 类单元测试（mock 版本）
+text_adventure 类单元测试（mock 版本）
 
 不使用真实 litert-lm，测试初始化逻辑和参数验证
 """
@@ -9,20 +9,20 @@ import sys
 import os
 import pytest
 
-_liteagent_path = "/home/node/.openclaw/workspace/LiteAgent_Planner"
+_liteagent_path = "/home/node/.openclaw/workspace/text_adventure_Planner"
 if _liteagent_path not in sys.path:
     sys.path.insert(0, _liteagent_path)
 
-from LiteAgent import LiteAgent
+from text_adventure import text_adventure
 
 
-class TestLiteAgentInit:
-    """测试 LiteAgent 初始化逻辑"""
+class Testtext_adventureInit:
+    """测试 text_adventure 初始化逻辑"""
 
     def test_init_with_nonexistent_model(self):
         """测试使用不存在的模型文件 - 应抛出异常"""
         with pytest.raises(ValueError) as excinfo:
-            LiteAgent(
+            text_adventure(
                 model_path="/nonexistent/path/to/model.litertlm",
                 temperature=0.7
             )
@@ -40,14 +40,14 @@ class TestLiteAgentInit:
         if not model_path or not os.path.isfile(model_path):
             pytest.skip("模型文件不存在")
         
-        agent = LiteAgent(model_path=model_path, temperature=0.7)
+        agent = text_adventure(model_path=model_path, temperature=0.7)
         assert agent is not None
         assert agent.temperature == 0.7
         agent.close()
 
 
-class TestLiteAgentCoreFunctionsMock:
-    """测试 LiteAgent 核心功能 - 基础验证"""
+class Testtext_adventureCoreFunctionsMock:
+    """测试 text_adventure 核心功能 - 基础验证"""
 
     def test_get_available_skills_no_skills(self):
         """测试无技能时的可用技能列表"""
@@ -55,7 +55,7 @@ class TestLiteAgentCoreFunctionsMock:
         if not model_path or not os.path.isfile(model_path):
             pytest.skip("模型文件不存在")
         
-        agent = LiteAgent(model_path=model_path, skill_dir="")
+        agent = text_adventure(model_path=model_path, skill_dir="")
         skills = agent.get_available_skills()
         assert skills == []
         agent.close()
@@ -66,7 +66,7 @@ class TestLiteAgentCoreFunctionsMock:
         if not model_path or not os.path.isfile(model_path):
             pytest.skip("模型文件不存在")
         
-        agent = LiteAgent(model_path=model_path, skill_dir="")
+        agent = text_adventure(model_path=model_path, skill_dir="")
         info = agent.get_skill_info("nonexistent")
         assert info is None
         agent.close()
@@ -77,7 +77,7 @@ class TestLiteAgentCoreFunctionsMock:
         if not model_path or not os.path.isfile(model_path):
             pytest.skip("模型文件不存在")
         
-        agent = LiteAgent(model_path=model_path, skill_dir="")
+        agent = text_adventure(model_path=model_path, skill_dir="")
         # list_skills 只是打印，不验证返回值
         agent.list_skills()  # 应该能正常调用不抛异常
         agent.close()

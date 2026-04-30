@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LiteAgent 单次询问工具
+text_adventure 单次询问工具
 
 使用方法:
     python question.py "What is AI?"
@@ -17,7 +17,7 @@ import os
 import ast
 import argparse
 
-from LiteAgent import LiteAgent
+from text_adventure import text_adventure
 import logging
 
 # 配置日志
@@ -27,13 +27,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger('Question')
 
-_liteagent_path = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _liteagent_path)
-
 
 def main():
     parser = argparse.ArgumentParser(
-        description="LiteAgent 单次询问工具",
+        description="text_adventure 单次询问工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
@@ -107,7 +104,7 @@ def main():
 
     # 创建 Agent
     try:
-        agent = LiteAgent(
+        agent = text_adventure(
             model_path=args.model,
             skill_dir=args.skill_dir,
             temperature=args.temperature,

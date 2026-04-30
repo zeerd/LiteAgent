@@ -1,18 +1,18 @@
-# Python LiteAgent Framework
+# Python text_adventure Framework
 
 基于 Google AI Edge Gallery 的 SKILL.md 机制实现的 Python Agent 框架，整合 LiteRT-LM 引擎。
 
 ## 📚 项目结构
 
 ```
-LiteAgent_Planner/
+text_adventure_Planner/
 ├── workplan.md                 # 项目规划文档
 ├── design_doc.md               # 详细设计文档
 ├── README.md                   # 本文件
-├── LiteAgent/                  # 核心框架
+├── text_adventure/                  # 核心框架
 │   ├── __init__.py            # 模块导出
 │   ├── skill.py               # SKILL.md 解析与技能管理
-│   └── agent.py               # LiteAgent 主类与对话功能
+│   └── agent.py               # text_adventure 主类与对话功能
 ├── skills/               # 测试技能目录
 │   └── echo-skill/
 │       └── SKILL.md           # Echo 测试技能
@@ -22,13 +22,13 @@ LiteAgent_Planner/
 
 ## 🚀 快速开始
 
-### 1. 初始化 LiteAgent
+### 1. 初始化 text_adventure
 
 ```python
-from LiteAgent import LiteAgent
+from text_adventure import text_adventure
 from LiteRT_LM.python.litert_lm.interfaces import Backend
 
-agent = LiteAgent(
+agent = text_adventure(
     model_path="/path/to/model.litertlm",
     skill_dir="./skills",
     backend=Backend.CPU,
@@ -43,12 +43,12 @@ response = agent.chat("Hello, world!")
 print(response)
 ```
 
-### 2. 使用 LiteAgentSession(多轮对话)
+### 2. 使用 text_adventureSession(多轮对话)
 
 ```python
-from LiteAgent import LiteAgentSession
+from text_adventure import text_adventureSession
 
-session = LiteAgentSession(
+session = text_adventureSession(
     model_path="/path/to/model.litertlm",
     skill_dir="./skills"
 )
@@ -112,7 +112,7 @@ This is the instruction content that guides the LLM's behavior.
 
 ## 🔄 与 Gallery SKILL.md 对比
 
-| 特性 | Gallery (Android) | Python LiteAgent |
+| 特性 | Gallery (Android) | Python text_adventure |
 |------|-------------------|------------------|
 | **SKILL.md 解析** | Kotlin 解析器 | Python Yaml 解析器 |
 | **Prompt 注入** | 替换 `___SKILLS___` | 构建完整 system prompt |
@@ -146,7 +146,7 @@ Simply repeat back the user's input exactly.
 - `get_skills_list()`: 返回注入格式的技能列表
 - `get_skills_names()`: 返回技能名称列表
 
-### LiteAgent
+### text_adventure
 
 - `chat(user_message)`: 单轮对话
 - `chat_stream(user_message)`: 流式对话
@@ -165,7 +165,7 @@ Simply repeat back the user's input exactly.
 
 1. 创建技能目录：`my-skill/`
 2. 创建 SKILL.md，包含 frontmatter 和 instructions
-3. 在 LiteAgent 初始化时指定 `skill_dir`
+3. 在 text_adventure 初始化时指定 `skill_dir`
 
 ### 自定义工具集成
 
@@ -189,7 +189,7 @@ class MyTool(Tool):
 ## ⚠️ 注意事项
 
 1. **模型文件**: 必须使用 `.litertlm` 格式
-2. **路径分离**: 确保 `LiteAgent/` 在 `LiteRT-LM/python/` 同级目录
+2. **路径分离**: 确保 `text_adventure/` 在 `LiteRT-LM/python/` 同级目录
 3. **Python 版本**: Python 3.8+ 推荐使用 `Pillow` 和 `PyYAML`
 4. **GPU 后端**: 需要相应硬件支持，默认使用 CPU
 

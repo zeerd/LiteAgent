@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LiteAgent 功能测试脚本
+text_adventure 功能测试脚本
 
 功能:测试 echo-skill 技能的正确调用
 预期行为:
@@ -27,11 +27,11 @@ EXPECTED_OUTPUT_NOT_START = "I am"
 def run_test():
     """运行测试"""
     print("=" * 70)
-    print("LiteAgent 功能测试 - echo-skill 测试")
+    print("text_adventure 功能测试 - echo-skill 测试")
     print("=" * 70)
 
     print("\n✅ 测试目的:")
-    print("1. 验证 LiteAgent 能正确加载 echo-skill")
+    print("1. 验证 text_adventure 能正确加载 echo-skill")
     print("2. 验证 load_skill 工具能被调用")
     print("3. 验证 AI 响应格式")
     print()
