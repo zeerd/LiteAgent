@@ -76,9 +76,11 @@ class text_adventure:
     def __init__(
         self,
         model_path: str,
-        skill_dir: str,
-        backend: Backend = Backend.CPU,
-        temperature: float = 0.7
+        skill_dir: str = "",
+        backend=Backend.CPU,
+        temperature: float = 0.7,
+        max_tokens: int = None,
+        compression_threshold: float = 0.75
     )
     
     def chat(self, user_message: str) -> str
@@ -86,6 +88,10 @@ class text_adventure:
     
     def get_available_skills(self) -> List[str]
     """获取所有可用技能名称"""
+    
+    @property
+    def history_messages(self) -> List[Dict]
+    """获取对话历史"""
 ```
 
 ## 三、与 LiteRT-LM 集成
@@ -95,13 +101,17 @@ class text_adventure:
 基于 LiteRT-LM 的 `create_conversation` API:
 
 ```python
-conversation = engine.create_conversation(
-    messages=[{"role": "system", "content": system_prompt}],
-    sampler_config=sampler_config
-)
-
-response = conversation.send_message(user_message)
+# 使用上下文管理器创建对话
+with engine.create_conversation(
+    tools=tools,
+    messages=[{"role": "system", "content": system_prompt}]
+) as conversation:
+    response = conversation.send_message(user_message)
 ```
+
+**注意**:
+- `create_conversation` 需要作为上下文管理器使用 (with 语句)
+- 对话对象会在 with 块结束时自动关闭，释放资源
 
 ### 3.2 System Prompt 构建
 
@@ -124,21 +134,28 @@ When a skill is relevant to the user's request, you can leverage it."""
 
 ### 4.1 命令行接口
 
+实际项目中提供了两个脚本：
+
+**`question.py` - 单次询问**:
 ```bash
-python test_agent.py \
+python question.py "什么是人工智能？" \
+    --model /path/to/model.litertlm
+```
+
+**`interactive.py` - 交互式 Shell**:
+```bash
+python interactive.py \
     --model /path/to/model.litertlm \
-    --skill-dir /path/to/skills \
-    --skill echo-skill \
-    --prompt "Hello world"
+    --skill-dir /path/to/skills
 ```
 
 ### 4.2 测试流程
-
 1. **初始化 Agent**: 加载模型 + SKILL.md 目录
 2. **验证解析**: 确认技能被正确加载
 3. **创建对话**: 注入 system prompt
 4. **发送消息**: 执行对话推理
 5. **输出结果**: 显示完整响应
+6. **上下文压缩**: 自动触发，无需手动干预
 
 ## 五、实现细节
 

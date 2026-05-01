@@ -9,15 +9,16 @@ text_adventure_Planner/
 ├── workplan.md                 # 项目规划文档
 ├── design_doc.md               # 详细设计文档
 ├── README.md                   # 本文件
-├── text_adventure/                  # 核心框架
-│   ├── __init__.py            # 模块导出
-│   ├── skill.py               # SKILL.md 解析与技能管理
-│   └── agent.py               # text_adventure 主类与对话功能
-├── skills/               # 测试技能目录
-│   └── echo-skill/
-│       └── SKILL.md           # Echo 测试技能
-├── test_agent.py              # 测试脚本
-└── run_test.py                # 测试入口脚本
+├── text_adventure/             # 核心框架
+│   ├── __init__.py           # 模块导出
+│   ├── skill.py              # SKILL.md 解析与技能管理
+│   ├── agent.py              # text_adventure 主类与对话功能
+│   └── compression.py        # 上下文压缩模块
+├── skills/                   # 测试技能目录
+│   └── echo-text/
+│       └── SKILL.md          # Echo 测试技能
+├── question.py               # 命令行单次询问工具
+└── interactive.py            # 交互式 Shell 入口
 ```
 
 ## 🚀 快速开始
@@ -43,48 +44,41 @@ response = agent.chat("Hello, world!")
 print(response)
 ```
 
-### 2. 使用 text_adventureSession(多轮对话)
+### 2. 使用 text_adventure 多轮对话
 
 ```python
-from text_adventure import text_adventureSession
+from text_adventure import text_adventure
 
-session = text_adventureSession(
+agent = text_adventure(
     model_path="/path/to/model.litertlm",
     skill_dir="./skills"
 )
 
 # 多轮对话
-print(session.chat("What can you do?"))
-print(session.chat("Tell me more"))
-print("会话历史:", session.messages)
+print(agent.chat("What can you do?"))
+print(agent.chat("Tell me more"))
+print("会话历史:", agent.history_messages)
 ```
 
 ## 🛠️ 命令行测试
 
 ```bash
 # 基本测试
-python run_test.py \
+python question.py \
     --model gemma-4-E2B-it.litertlm \
     --skill-dir skills \
-    --prompt "Test message"
+    "Test message"
+
+# 交互式模式
+python interactive.py \
+    --model model.litertlm \
+    --skill-dir skills
 
 # 列出技能
-python run_test.py \
+python question.py \
     --model model.litertlm \
     --skill-dir skills \
-    --list-skills
-
-# 获取技能详情
-python run_test.py \
-    --model model.litertlm \
-    --skill-dir skills \
-    --get-skill-info echo-test
-
-# 使用 GPU(如果可用)
-python run_test.py \
-    --model model.litertlm \
-    --skill-dir skills \
-    --backend gpu
+    "--list-skills"
 ```
 
 ## 📁 SKILL.md 格式
@@ -122,7 +116,7 @@ This is the instruction content that guides the LLM's behavior.
 
 ## 🧪 测试技能示例
 
-`echo-skill`:
+`echo-text`:
 
 ```markdown
 ---

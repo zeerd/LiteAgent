@@ -118,6 +118,7 @@ class text_adventure:
         max_tokens: int = None,
         compression_threshold: float = 0.75,
         use_minimal_prompt: bool = True,
+        allowed_skill_list: list = None,
     ):
         """
         初始化 text_adventure
@@ -134,6 +135,8 @@ class text_adventure:
             use_minimal_prompt: 是否使用精简系统提示词
                                True: 不包含技能指令全文，仅定义 load_skill 工具
                                False: 包含技能指令摘要
+            allowed_skill_list: 只允许加载的技能名称列表 (可选)
+                               如果提供，只加载这些技能，跳过其他技能
         """
         logger.info("=" * 60)
         logger.info("正在初始化 text_adventure...")
@@ -143,6 +146,7 @@ class text_adventure:
         logger.info("  - 温度:%s", temperature)
         logger.info("  - 压缩阈值:%s", compression_threshold)
         logger.info("  - 精简提示词:%s", use_minimal_prompt)
+        logger.info("  - 允许技能列表:%s", allowed_skill_list)
 
         # 验证模型文件
         if not os.path.isfile(model_path):
@@ -158,10 +162,10 @@ class text_adventure:
         self.max_tokens = max_tokens
         self._compression_threshold = compression_threshold
 
-        # 初始化技能管理器
+        # 初始化技能管理器 (传入白名单)
         self._skill_manager: Optional[SkillManager] = None
         if skill_dir:
-            self._skill_manager = SkillManager(skill_dir)
+            self._skill_manager = SkillManager(skill_dir, allowed_skill_list)
             skills = self._skill_manager.get_all_skills()
             logger.info("✅ 加载 %d 个技能", len(skills))
 

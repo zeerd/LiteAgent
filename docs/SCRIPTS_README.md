@@ -62,23 +62,6 @@ python question.py "你好" --compression
 
 ---
 
-### 3. `run_test.py` - 统一测试脚本
-整合了两个脚本的功能。
-
-**用法**:
-```bash
-# 单次询问
-python run_test.py "你好" --model /path/to/model.litertlm
-
-# 交互式模式
-python run_test.py --interactive --model /path/to/model.litertlm
-
-# 从环境变量获取模型
-python run_test.py "你好"  # 使用 LITEAGENT_MODEL_PATH
-```
-
----
-
 ## 环境变量
 
 所有脚本都支持以下环境变量:

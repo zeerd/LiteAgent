@@ -4,8 +4,11 @@ SKILL.md 解析与技能管理模块
 """
 
 import os
+import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -114,21 +117,26 @@ class SkillParser:
 class SkillManager:
     """技能管理器 - 加载和管理多个 SKILL.md"""
 
-    def __init__(self, skill_dir: str = ""):
+    def __init__(self, skill_dir: str = "", allowed_skill_list: list = None):
         """
         初始化技能管理器
 
         Args:
             skill_dir: SKILL.md 文件的根目录 (可选，用于初始化时扫描)
+            allowed_skill_list: 允许加载的技能名称列表 (可选，如果提供则只加载这些技能)
         """
         self._skills: Dict[str, Skill] = {}
         self._skill_dir = skill_dir
+        self._allowed_skill_list = allowed_skill_list or []
         if skill_dir:
             self.load_skills(skill_dir)
 
     def load_skills(self, skill_dir: str) -> List[Skill]:
         """
-        扫描目录并加载所有 SKILL.md 文件
+        扫描目录并加载所有 SKILL.md 文件，根据白名单过滤
+
+        Args:
+            skill_dir: SKILL.md 目录路径
 
         Returns:
             加载的技能列表
@@ -150,10 +158,23 @@ class SkillManager:
 
             try:
                 skill = SkillParser.parse_file(skill_file)
-                self._skills[skill.name] = skill
-                loaded.append(skill)
+
+                # 如果指定了白名单，只加载白名单中的技能
+                if self._allowed_skill_list:
+                    if skill.name in self._allowed_skill_list:
+                        self._skills[skill.name] = skill
+                        loaded.append(skill)
+                        logger.info(f"✅ 已加载 (白名单匹配): {skill.name}")
+                    else:
+                        logger.info(f"⏭️  跳过 (不在白名单): {skill.name}")
+                else:
+                    # 无白名单，加载所有技能
+                    self._skills[skill.name] = skill
+                    loaded.append(skill)
+                    logger.info(f"✅ 已加载：{skill.name}")
+
             except Exception as e:
-                print(f"Warning: Failed to load {skill_file}: {e}")
+                logger.warning(f"Failed to load {skill_file}: {e}")
 
         return loaded
 
@@ -218,6 +239,7 @@ After this step you MUST go to next step. You MUST NOT use `run_intent` under an
 """
 
         return base_prompt.format(skills=skills_text if skills_text else "(无可用技能)")
+
     @staticmethod
     def _format_skills(skills: List[Skill]) -> str:
         """格式化技能列表为文本 (精简版)"""
@@ -226,6 +248,7 @@ After this step you MUST go to next step. You MUST NOT use `run_intent` under an
             f"- `{skill.name}`: {skill.description}"
             for skill in sorted_skills
         ])
+
 
 # 工具调用结果格式化模板
 LOAD_SKILL_TOOL_RESPONSE = """
