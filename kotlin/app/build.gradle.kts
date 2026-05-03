@@ -131,4 +131,7 @@ dependencies {
 
     // LiteRT-LM
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.10.2")
+
+    // Markdown rendering
+    implementation("com.github.jeziellago:compose-markdown:0.7.2")
 }

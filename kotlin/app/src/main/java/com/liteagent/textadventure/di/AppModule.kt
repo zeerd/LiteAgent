@@ -23,7 +23,9 @@ object DatabaseModule {
             context.applicationContext,
             AppDatabase::class.java,
             "text_adventure_database"
-        ).build()
+        )
+        .fallbackToDestructiveMigration(dropAllTables = true)
+        .build()
     }
 
     @Provides

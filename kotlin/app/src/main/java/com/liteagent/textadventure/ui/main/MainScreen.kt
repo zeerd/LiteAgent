@@ -1,6 +1,5 @@
 package com.liteagent.textadventure.ui.main
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +16,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.liteagent.textadventure.model.ChatMessage
+import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,10 +27,6 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberLazyListState()
-
-    LaunchedEffect(Unit) {
-        viewModel.loadLatestSession()
-    }
 
     // Auto-scroll to bottom when messages change or AI is typing
     LaunchedEffect(uiState.messages.size, uiState.currentMessage) {
@@ -81,7 +77,21 @@ fun MainScreen(
                         }
                     }
 
-                    items(uiState.messages) { message ->
+                    // Filter out internal system messages and first user prompt
+                    val displayMessages = uiState.messages.filterIndexed { index, message ->
+                        val text = message.text
+                        // Hide first user message (setting) if it's the very first message
+                        val isFirstUserMessage = index == 0 && message.role == ChatMessage.Role.USER
+
+                        // Hide system-like instrumented prompts
+                        val isInstrumentedPrompt = text.contains("find the most relevant skill") ||
+                                                 text.contains("1. First, find the most relevant skill") ||
+                                                 text.contains("You are a text adventure game master")
+
+                        !isFirstUserMessage && !isInstrumentedPrompt
+                    }
+
+                    items(displayMessages) { message ->
                         MessageBubble(
                             text = message.text,
                             isUser = message.role == ChatMessage.Role.USER
@@ -112,44 +122,23 @@ fun MainScreen(
                             shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f)
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(48.dp).padding(8.dp)
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(48.dp).padding(8.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "AI is thinking...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
-            }
-
-            // Quick action buttons
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                QuickActionButton(
-                    text = "Continue",
-                    onClick = { /* On quick action selected */ },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                QuickActionButton(
-                    text = "Examine",
-                    onClick = { /* On examine selected */ },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                QuickActionButton(
-                    text = "Help",
-                    onClick = { /* On help selected */ },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                QuickActionButton(
-                    text = "Restart",
-                    onClick = { /* On restart selected */ },
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -241,34 +230,20 @@ fun MessageBubble(
             shape = MaterialTheme.shapes.medium,
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (isUser)
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                else
-                    MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)
-            )
+            if (isUser) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)
+                )
+            } else {
+                MarkdownText(
+                    markdown = text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)
+                )
+            }
         }
-    }
-}
-
-@Composable
-fun QuickActionButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Text(text)
     }
 }

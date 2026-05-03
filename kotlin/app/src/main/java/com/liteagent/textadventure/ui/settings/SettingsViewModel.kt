@@ -219,7 +219,8 @@ class SettingsViewModel @Inject constructor(
                         backend = if (settings.accelerationMode == "GPU")
                             com.google.ai.edge.litertlm.Backend.GPU()
                         else
-                            com.google.ai.edge.litertlm.Backend.CPU()
+                            com.google.ai.edge.litertlm.Backend.CPU(),
+                        maxNumTokens = settings.maxTokens
                     )
                     liteRtLmService.initialize(config, settings.systemPrompt)
                 }

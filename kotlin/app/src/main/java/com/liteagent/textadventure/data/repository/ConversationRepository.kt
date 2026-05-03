@@ -30,6 +30,10 @@ class ConversationRepository @Inject constructor(
         conversationDao.deleteMessagesBySession(sessionId)
     }
 
+    suspend fun getMessagesBySessionSync(sessionId: String): List<ConversationEntity> {
+        return conversationDao.getMessagesBySessionSync(sessionId)
+    }
+
     fun getAllConversations(): Flow<List<ConversationEntity>> {
         return conversationDao.getAllConversations()
     }

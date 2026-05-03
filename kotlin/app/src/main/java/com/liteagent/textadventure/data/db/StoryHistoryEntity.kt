@@ -15,6 +15,8 @@ data class StoryHistoryEntity(
     val storyBeginning: String,
     @ColumnInfo(name = "last_active")
     val lastActive: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "message_count")
     val messageCount: Int = 0,
     @ColumnInfo(name = "current_context")

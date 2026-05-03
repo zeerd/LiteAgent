@@ -10,6 +10,8 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.SamplerConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +19,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,6 +28,8 @@ import javax.inject.Singleton
 class LiteRtLmService @Inject constructor(
     private val context: Context
 ) {
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     companion object {
         private const val TAG = "LiteRtLmService"
         private const val MODEL_FOLDER_NAME = "text_adventure_models"
@@ -94,7 +99,18 @@ class LiteRtLmService @Inject constructor(
 
     init {
         Log.d(TAG, "LiteRtLmService initialized")
+        try {
+            System.loadLibrary("litertlm_jni")
+            Log.d(TAG, "Native library litertlm_jni loaded successfully in service")
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "Failed to load litertlm_jni in service: ${e.message}")
+        }
     }
+
+    /**
+     * Provide a scope for background tasks that outlive UI components
+     */
+    fun getScope(): CoroutineScope = serviceScope
 
     /**
      * 初始化 Engine、技能和压缩器 - 完全对应 Python 版本
@@ -300,7 +316,7 @@ class LiteRtLmService @Inject constructor(
      * 检查是否需要压缩上下文
      * 完全对应 Python 的 _check_compression_trigger
      */
-    private fun shouldCompress(): Pair<Boolean, Int> {
+    private fun shouldCompress(lastResponse: String = ""): Pair<Boolean, Int> {
         if (_historyMessages.isEmpty() || _maxTokens <= 0) {
             return false to 0
         }
@@ -309,13 +325,19 @@ class LiteRtLmService @Inject constructor(
         val threshold = (_maxTokens * _compressionThreshold).toInt()
         val actualLength = totalContentLength / 2
 
-        val shouldCompress = actualLength > threshold
+        // Condition 1: Context/2 exceeds 75% of threshold
+        val lengthTrigger = actualLength > threshold
+
+        // Condition 2: LLM response is shorter than 10 characters
+        val shortResponseTrigger = lastResponse.isNotEmpty() && lastResponse.length < 10
+
+        val shouldCompress = lengthTrigger || shortResponseTrigger
 
         if (shouldCompress) {
-            Log.d(TAG, "✅ Trigger compression: total=$totalContentLength/2=$actualLength > threshold=$threshold")
-            Log.d(TAG, "🔧 Starting context compression. ..")
+            Log.d(TAG, "✅ Trigger compression: lengthTrigger=$lengthTrigger (actual=$actualLength, thresh=$threshold), shortTrigger=$shortResponseTrigger (len=${lastResponse.length})")
+            Log.d(TAG, "🔧 Starting context compression...")
         } else {
-            Log.d(TAG, "📊 No compression: total=$totalContentLength/2=$actualLength <= threshold=$threshold")
+            Log.d(TAG, "📊 No compression: actual=$actualLength <= thresh=$threshold AND response len=${lastResponse.length} >= 10")
         }
 
         return shouldCompress to totalContentLength
@@ -349,8 +371,11 @@ class LiteRtLmService @Inject constructor(
      * 完全对应 Python 版本的 chat() 方法
      */
     suspend fun chat(userMessage: String): String {
-        Log.d(TAG, "-".repeat(40))
-        Log.d(TAG, "📝 User message: ${userMessage.ifEmpty { "[empty]" }}..")
+        Log.d(TAG, "===========================================")
+        Log.d(TAG, "LLM CHAT INVOKED")
+        Log.d(TAG, "SYSTEM PROMPT: $_systemPrompt")
+        Log.d(TAG, "USER MESSAGE: $userMessage")
+        Log.d(TAG, "===========================================")
 
         _isProcessing.value = true
         _currentMessage.value = ""
@@ -358,50 +383,16 @@ class LiteRtLmService @Inject constructor(
         // Add user message to history
         _historyMessages.add(ContextCompressor.Message("user", userMessage))
 
-        val (needCompression, totalLength) = shouldCompress()
+        // First check: did the previous context already exceed the limit?
+        val (initialNeedCompress, _) = shouldCompress()
 
         return try {
             val responseBuilder = StringBuilder()
 
-            // Process with compression if needed
-            if (needCompression) {
-                // Execute compression
-                val compressedHistory = compressor?.compressHistory(_historyMessages)
-
-                if (compressedHistory != null && compressedHistory.isNotEmpty()) {
-                    Log.d(
-                        TAG,
-                        "✅ Compression successful, compressed=${compressedHistory.length} chars, original=$totalLength"
-                    )
-
-                    // Reset history
-                    _historyMessages.clear()
-
-                    // Rebuild conversation with compressed history
-                    val compressedMessages = buildCompressedMessages(compressedHistory)
-
-                    Log.d(TAG, "🔄 Compressing and resuming conversation. ..")
-
-                    // Re-initialize conversation
-                    conversation?.close()
-                    val conversationConfig = ConversationConfig(
-                        systemInstruction = Contents.of(_systemPrompt),
-                        initialMessages = listOf(
-                            Message.user(compressedHistory),
-                            Message.model("Acknowledged"),
-                        ),
-                        samplerConfig = SamplerConfig(topK = 10, topP = 0.95, temperature = 0.8),
-                    )
-                    conversation = engine?.createConversation(conversationConfig)
-
-                    // Collect final response
-                    conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
-                        responseBuilder.append(partialResponse)
-                    }
-                } else {
-                    Log.w(TAG, "⚠️ Compression failed, continuing with original response")
-                }
+            if (initialNeedCompress) {
+                performCompressionAndChat(userMessage, responseBuilder)
             } else {
+                Log.d(TAG, "Sending message to conversation...")
                 // Normal chat flow without compression
                 conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
                     _currentMessage.value += partialResponse.toString()
@@ -409,10 +400,27 @@ class LiteRtLmService @Inject constructor(
                 }
             }
 
-            val responseText = responseBuilder.toString()
+            var responseText = responseBuilder.toString()
+            Log.d(TAG, "LLM Response completed: ${responseText.take(50)}...")
 
             // Add assistant response to history
             _historyMessages.add(ContextCompressor.Message("assistant", responseText))
+
+            // Post-chat check: was the response too short? Or did this message push context over?
+            val (postNeedCompress, _) = shouldCompress(responseText)
+
+            if (postNeedCompress && !initialNeedCompress) {
+                Log.d(TAG, "🔄 Response triggered late compression. Retrying chat...")
+                responseBuilder.clear()
+                performCompressionAndChat(userMessage, responseBuilder)
+                responseText = responseBuilder.toString()
+
+                // Update the last message in history with the new full response
+                if (_historyMessages.isNotEmpty() && _historyMessages.last().role == "assistant") {
+                    _historyMessages.removeAt(_historyMessages.size - 1)
+                }
+                _historyMessages.add(ContextCompressor.Message("assistant", responseText))
+            }
 
             responseText
 
@@ -422,6 +430,70 @@ class LiteRtLmService @Inject constructor(
             ""
         } finally {
             _isProcessing.value = false
+        }
+    }
+
+    private suspend fun performCompressionAndChat(userMessage: String, responseBuilder: StringBuilder) {
+        val totalLength = _historyMessages.sumOf { it.content.length }
+        Log.d(TAG, "Executing compression (total history length: $totalLength)")
+
+        val compressedHistory = compressor?.compressHistory(_historyMessages)
+
+        if (compressedHistory != null && compressedHistory.isNotEmpty()) {
+            Log.d(TAG, "✅ Compression successful: ${compressedHistory.length} chars")
+
+            // Reset history
+            _historyMessages.clear()
+
+            // Rebuild conversation
+            conversation?.close()
+            val conversationConfig = ConversationConfig(
+                systemInstruction = Contents.of(_systemPrompt),
+                initialMessages = listOf(
+                    Message.user(compressedHistory),
+                    Message.model("Acknowledged"),
+                ),
+                samplerConfig = SamplerConfig(topK = 10, topP = 0.95, temperature = 0.8),
+            )
+            conversation = engine?.createConversation(conversationConfig)
+
+            // Collect final response
+            conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
+                _currentMessage.value += partialResponse.toString()
+                responseBuilder.append(partialResponse.toString())
+            }
+        } else {
+            Log.w(TAG, "⚠️ Compression failed, continuing with original conversation")
+            conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
+                _currentMessage.value += partialResponse.toString()
+                responseBuilder.append(partialResponse.toString())
+            }
+        }
+    }
+
+    /**
+     * Restore conversation history from a list of messages
+     */
+    fun restoreHistory(messages: List<ContextCompressor.Message>) {
+        try {
+            _historyMessages.clear()
+            _historyMessages.addAll(messages)
+
+            // Re-initialize conversation with full context if possible
+            val conversationConfig = ConversationConfig(
+                systemInstruction = Contents.of(_systemPrompt),
+                initialMessages = messages.map { msg ->
+                    if (msg.role == "user") Message.user(msg.content)
+                    else Message.model(msg.content)
+                }
+            )
+
+            conversation?.close()
+            conversation = engine?.createConversation(conversationConfig)
+
+            Log.d(TAG, "Restored ${messages.size} messages to LLM context")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error restoring history: ${e.message}")
         }
     }
 
@@ -493,7 +565,7 @@ class LiteRtLmService @Inject constructor(
         return EngineConfig(
             modelPath = getOrCreateModelPath(),
             backend = Backend.CPU(),
-            maxNumTokens = _maxTokens
+            maxNumTokens = 32768 // Default to 32k for text adventure
         )
     }
 

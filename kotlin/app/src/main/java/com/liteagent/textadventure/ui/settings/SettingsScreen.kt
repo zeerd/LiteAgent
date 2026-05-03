@@ -332,9 +332,12 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
-                    onClick = { viewModel.saveSettings() },
+                    onClick = {
+                        viewModel.saveSettings()
+                        onNavigateBack()
+                    },
                     modifier = Modifier
-                        .fillMaxWidth(0.6f)
+                        .weight(0.6f)
                         .height(56.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -344,7 +347,7 @@ fun SettingsScreen(
                 OutlinedButton(
                     onClick = { onNavigateBack() },
                     modifier = Modifier
-                        .fillMaxWidth(0.4f)
+                        .weight(0.4f)
                         .height(56.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {

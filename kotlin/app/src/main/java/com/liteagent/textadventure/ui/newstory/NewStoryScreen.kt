@@ -2,18 +2,23 @@ package com.liteagent.textadventure.ui.newstory
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.*
 import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,24 +41,26 @@ fun NewStoryScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("New Story") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+            if (!uiState.showHistory) {
+                TopAppBar(
+                    title = { Text("New Story") },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp)
+                .padding(if (uiState.showHistory) 0.dp else 24.dp)
         ) {
             val filePickerLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocument()
@@ -66,7 +73,8 @@ fun NewStoryScreen(
                 HistoryScreen(
                     onNavigateBack = {
                         viewModel.hideHistory()
-                    }
+                    },
+                    viewModel = viewModel
                 )
             } else {
                 // Story selection screen
@@ -194,7 +202,9 @@ fun NewStoryScreen(
                     ) {
                         FilledTonalButton(
                             onClick = { onNavigateBack() },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Cancel")
@@ -204,8 +214,7 @@ fun NewStoryScreen(
                             onClick = viewModel::onStartStory,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(56.dp)
-                                .align(Alignment.CenterVertically),
+                                .height(56.dp),
                             enabled = uiState.canStartStory && !uiState.startingStory,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -221,31 +230,140 @@ fun NewStoryScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    viewModel: NewStoryViewModel
 ) {
-    // Simplified history screen - in full implementation would show past stories
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.History,
-            contentDescription = null,
-            modifier = Modifier.size(64.dp)
+    val stories by viewModel.storyHistoryRepository.getAllStories().collectAsState(initial = emptyList())
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    var isSelectionMode by remember { mutableStateOf(false) }
+
+    val dateFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text(if (isSelectionMode) "${selectedIds.size} Selected" else "Story History") },
+            navigationIcon = {
+                IconButton(onClick = {
+                    if (isSelectionMode) {
+                        isSelectionMode = false
+                        selectedIds = emptySet()
+                    } else {
+                        onNavigateBack()
+                    }
+                }) {
+                    Icon(
+                        imageVector = if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back"
+                    )
+                }
+            },
+            actions = {
+                if (isSelectionMode) {
+                    IconButton(onClick = {
+                        viewModel.deleteSelectedStories(selectedIds.toList())
+                        isSelectionMode = false
+                        selectedIds = emptySet()
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Selected")
+                    }
+                } else if (stories.isNotEmpty()) {
+                    IconButton(onClick = { isSelectionMode = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Selection Mode")
+                    }
+                }
+            }
         )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Story History",
-            style = MaterialTheme.typography.titleLarge
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Your past adventure stories will appear here.",
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center
-        )
+
+        if (stories.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(Icons.Default.History, null, modifier = Modifier.size(64.dp))
+                Text("No stories yet", style = MaterialTheme.typography.titleLarge)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(stories) { story ->
+                    val isSelected = selectedIds.contains(story.id)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        selectedIds = if (isSelected) selectedIds - story.id else selectedIds + story.id
+                                        if (selectedIds.isEmpty()) isSelectionMode = false
+                                    } else {
+                                        viewModel.onLoadStory(story)
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        isSelectionMode = true
+                                        selectedIds = setOf(story.id)
+                                    }
+                                }
+                            ),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (isSelectionMode) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = { isChecked ->
+                                        selectedIds = if (isChecked) selectedIds + story.id else selectedIds - story.id
+                                        if (selectedIds.isEmpty()) isSelectionMode = false
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(story.settingTitle, style = MaterialTheme.typography.titleMedium)
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(
+                                        text = "Created: ${dateFormatter.format(Date(story.createdAt))}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Active: ${dateFormatter.format(Date(story.lastActive))}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    story.storyBeginning.take(100) + "...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 2
+                                )
+                            }
+                            if (!isSelectionMode) {
+                                IconButton(onClick = { viewModel.deleteStory(story.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

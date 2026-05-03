@@ -1,8 +1,8 @@
 package com.liteagent.textadventure.ui.newstory
 
 import android.content.Context
+import android.util.Log
 import android.net.Uri
-import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.liteagent.textadventure.data.local.StorySettingsDataSource
@@ -27,12 +27,16 @@ import javax.inject.Inject
 @HiltViewModel
 class NewStoryViewModel @Inject constructor(
     private val storySettingsDataSource: StorySettingsDataSource,
-    private val storyHistoryRepository: StoryHistoryRepository,
+    val storyHistoryRepository: StoryHistoryRepository,
     private val conversationRepository: ConversationRepository,
     private val appSettingsRepository: AppSettingsRepository,
     private val liteRtLmService: LiteRtLmService,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "NewStoryViewModel"
+    }
 
     private val _uiState = MutableStateFlow(NewStoryUiState())
     val uiState: StateFlow<NewStoryUiState> = _uiState.asStateFlow()
@@ -45,18 +49,42 @@ class NewStoryViewModel @Inject constructor(
     private var selectedSettingDirPath: String? = null
 
     init {
+        Log.d(TAG, "Initializing NewStoryViewModel")
         viewModelScope.launch {
             liteRtLmService.isInitialized.collect { isInitialized ->
+                Log.d(TAG, "LiteRT-LM initialized state changed: $isInitialized")
                 _uiState.update { it.copy(isModelInitialized = isInitialized) }
+            }
+        }
+        loadLastSelectedFile()
+    }
+
+    private fun loadLastSelectedFile() {
+        Log.d(TAG, "Loading last selected file from settings")
+        val settings = appSettingsRepository.getSettings()
+        selectedSettingFileName = settings.lastSelectedFileName
+        selectedSettingFileUri = settings.lastSelectedFileUri?.let { Uri.parse(it) }
+        selectedSettingDirPath = settings.lastSelectedFileDirPath
+
+        if (selectedSettingFileName != null) {
+            Log.d(TAG, "Restoring selection: $selectedSettingFileName")
+            val fileNameWithoutExt = getFileNameWithoutExtension(selectedSettingFileName!!)
+            _uiState.update {
+                it.copy(
+                    selectedFileName = fileNameWithoutExt,
+                    canStartStory = true
+                )
             }
         }
     }
 
     fun onSettingSelected(setting: StorySetting) {
+        Log.d(TAG, "Story setting selected: ${setting.id}")
         storySettingsDataSource.selectSetting(setting)
     }
 
     fun onFileSelected(uri: Uri) {
+        Log.d(TAG, "File selected: $uri")
         viewModelScope.launch {
             try {
                 // Get the file name from URI
@@ -80,6 +108,8 @@ class NewStoryViewModel @Inject constructor(
 
                 selectedSettingDirPath = storyDir.absolutePath
 
+                Log.d(TAG, "Copying selected file to: ${storyDir.absolutePath}")
+
                 // Copy file to the new directory
                 val inputStream = context.contentResolver.openInputStream(uri)
                 val destinationFile = File(storyDir, fileName)
@@ -98,10 +128,17 @@ class NewStoryViewModel @Inject constructor(
                     )
                 }
 
-                Toast.makeText(context, "Selected: $fileName", Toast.LENGTH_SHORT).show()
+                // Persist the selection
+                Log.d(TAG, "Persisting file selection in settings")
+                val currentSettings = appSettingsRepository.getSettings()
+                appSettingsRepository.saveSettings(currentSettings.copy(
+                    lastSelectedFileName = fileName,
+                    lastSelectedFileUri = uri.toString(),
+                    lastSelectedFileDirPath = storyDir.absolutePath
+                ))
 
             } catch (e: Exception) {
-                Toast.makeText(context, "Failed to select file: ${e.message}", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "Error selecting file: ${e.message}", e)
                 _uiState.update {
                     it.copy(
                         selectedFileName = null,
@@ -174,40 +211,63 @@ class NewStoryViewModel @Inject constructor(
         val fileName = selectedSettingFileName ?: return
         val settingDirPath = selectedSettingDirPath ?: return
 
-        viewModelScope.launch {
+        Log.d(TAG, "Starting new story with file: $fileName")
+
+        val storyId = UUID.randomUUID().toString()
+        _uiState.update { it.copy(startingStory = true, storyStarted = true, newStoryId = storyId, hasError = false) }
+
+        // Use LiteRtLmService's long-lived scope to avoid JobCancellationException when navigating back
+        liteRtLmService.getScope().launch {
             try {
-                _uiState.update { it.copy(startingStory = true, hasError = false) }
+                Log.d(TAG, "Background initialization started for storyId: $storyId")
 
-                val storyId = UUID.randomUUID().toString()
+                // Initial history entry (empty or with title)
+                val initialHistoryEntry = StoryHistoryEntity(
+                    id = storyId,
+                    settingId = selectedSettingFileUri?.toString() ?: "",
+                    settingTitle = selectedSettingFileName ?: "Unknown Setting",
+                    storyBeginning = "Loading...",
+                    messageCount = 0,
+                    createdAt = System.currentTimeMillis(),
+                    lastActive = System.currentTimeMillis()
+                )
+                Log.d(TAG, "Saving initial history entry for storyId: $storyId")
+                storyHistoryRepository.addStory(initialHistoryEntry)
 
-                val storyIntro = withContext(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     // Read the selected file content
                     val settingFile = File(settingDirPath, fileName)
                     val settingContent = if (settingFile.exists()) {
                         settingFile.readText()
                     } else {
+                        Log.e(TAG, "Setting file not found: ${settingFile.absolutePath}")
                         throw IllegalArgumentException("Setting file not found")
                     }
+
+                    Log.d(TAG, "Background setting content read (${settingContent.length} chars)")
 
                     // Get app settings for model path
                     val appSettings = appSettingsRepository.getSettings()
                     val modelPath = appSettings.selectedModelPath
 
                     if (modelPath == null || !File(modelPath).exists()) {
+                        Log.e(TAG, "Model path invalid: $modelPath")
                         throw IllegalStateException("Model not found. Please download or select a model in Settings first.")
                     }
 
                     // Extract skills from assets to internal storage
                     val skillDir = extractSkillsFromAssets()
 
+                    Log.d(TAG, "Initializing LiteRT-LM for new story...")
                     // Initialize LiteRT-LM for text-adventure skill
-                    val isInitialized = liteRtLmService.initialize(
+                    val isInitSuccess = liteRtLmService.initialize(
                         engineConfig = liteRtLmService.getEngineConfig().copy(
                             modelPath = modelPath,
                             backend = if (appSettings.accelerationMode == "GPU")
                                 com.google.ai.edge.litertlm.Backend.GPU()
                             else
-                                com.google.ai.edge.litertlm.Backend.CPU()
+                                com.google.ai.edge.litertlm.Backend.CPU(),
+                            maxNumTokens = appSettings.maxTokens
                         ),
                         systemPrompt = "You are a text adventure game master using the text-adventure skill.",
                         skillDir = skillDir,
@@ -216,21 +276,31 @@ class NewStoryViewModel @Inject constructor(
                         temperature = appSettings.temperature
                     )
 
-                    if (!isInitialized) {
+                    if (!isInitSuccess) {
                         val errorMsg = liteRtLmService.error.value ?: "Unknown error"
+                        Log.e(TAG, "LiteRT-LM initialization failed: $errorMsg")
                         throw IllegalStateException("Failed to initialize LiteRT-LM: $errorMsg")
                     }
 
+                    Log.d(TAG, "LLM INITIALIZATION SUCCESSFUL")
+
+                    Log.d(TAG, ">>> PREPARING FIRST LLM CALL <<<")
+                    Log.d(TAG, "TARGET SYSTEM PROMPT: You are a text adventure game master using the text-adventure skill.")
+                    Log.d(TAG, "TARGET USER PROMPT (Background Setting): $settingContent")
+
                     // Send the setting file content as the first user prompt
                     val response = liteRtLmService.chat(settingContent)
+                    Log.d(TAG, "LLM RESPONSE RECEIVED: ${response.take(100)}...")
 
                     // Generate story intro based on the response
                     val intro = if (response.contains("\n")) {
                         response // Use the AI's response as intro
                     } else {
+                        Log.w(TAG, "LLM response short/malformed, generating fallback intro")
                         generateStoryIntroFromSetting(settingContent)
                     }
 
+                    Log.d(TAG, "Saving initial conversation messages")
                     // Save initial messages to conversation repository
                     conversationRepository.addMessage(
                         ConversationEntity(
@@ -252,38 +322,26 @@ class NewStoryViewModel @Inject constructor(
                         )
                     )
 
-                    // Save to history
+                    Log.d(TAG, "Updating history entry with final intro")
+                    // Save to history (Update with real intro)
                     val historyEntry = StoryHistoryEntity(
                         id = storyId,
                         settingId = selectedSettingFileUri?.toString() ?: "",
                         settingTitle = selectedSettingFileName ?: "Unknown Setting",
                         storyBeginning = intro,
-                        messageCount = 2 // Initial setting + AI response
+                        messageCount = 2, // Initial setting + AI response
+                        createdAt = initialHistoryEntry.createdAt,
+                        lastActive = System.currentTimeMillis()
                     )
-                    storyHistoryRepository.addStory(historyEntry)
-
-                    intro
+                    storyHistoryRepository.updateStory(historyEntry)
                 }
 
-                _uiState.update {
-                    it.copy(
-                        startingStory = false,
-                        storyStarted = true,
-                        newStoryId = storyId,
-                        storyIntro = storyIntro,
-                        canStartStory = false,
-                        selectedFileName = null
-                    )
-                }
+                Log.d(TAG, "New story started successfully in background")
 
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        startingStory = false,
-                        hasError = true,
-                        errorMessage = e.message ?: "Unknown error"
-                    )
-                }
+                Log.e(TAG, "Error starting new story in background: ${e.message}", e)
+                // Since we've already navigated away, we can't easily show this error in the NewStory UI,
+                // but MainViewModel could observe an error state if we add it to the service.
             }
         }
     }
@@ -294,7 +352,6 @@ class NewStoryViewModel @Inject constructor(
     }
 
     fun onNewStoryDismiss() {
-        resetSelection()
         _uiState.update { it.copy(storyStarted = false, startingStory = false) }
     }
 
@@ -306,18 +363,100 @@ class NewStoryViewModel @Inject constructor(
     }
 
     fun onCancel() {
-        resetSelection()
+        // No longer resetting selection here
     }
 
     fun onViewHistory() {
         viewModelScope.launch {
-            val stories = storyHistoryRepository.getAllStories().first()
             _uiState.update { it.copy(showHistory = true) }
         }
     }
 
     fun hideHistory() {
         _uiState.update { it.copy(showHistory = false) }
+    }
+
+    fun deleteStory(storyId: String) {
+        viewModelScope.launch {
+            storyHistoryRepository.deleteStory(storyId)
+        }
+    }
+
+    fun deleteSelectedStories(storyIds: List<String>) {
+        viewModelScope.launch {
+            storyIds.forEach { storyHistoryRepository.deleteStory(it) }
+        }
+    }
+
+    fun onLoadStory(story: StoryHistoryEntity) {
+        Log.d(TAG, "onLoadStory called for ID: ${story.id}")
+
+        // Immediate navigation signal
+        _uiState.update { it.copy(storyStarted = true, newStoryId = story.id) }
+
+        // Use serviceScope to restore context in background
+        liteRtLmService.getScope().launch {
+            try {
+                Log.d(TAG, "Re-initializing engine and restoring context for story: ${story.id}")
+
+                // Get app settings for model path
+                val appSettings = appSettingsRepository.getSettings()
+                val modelPath = appSettings.selectedModelPath
+
+                if (modelPath == null || !File(modelPath).exists()) {
+                    Log.e(TAG, "Model path invalid: $modelPath")
+                    return@launch
+                }
+
+                // Extract skills from assets
+                val skillDir = extractSkillsFromAssets()
+
+                // 1. Initialize LiteRT-LM
+                val isInitSuccess = liteRtLmService.initialize(
+                    engineConfig = liteRtLmService.getEngineConfig().copy(
+                        modelPath = modelPath,
+                        backend = if (appSettings.accelerationMode == "GPU")
+                            com.google.ai.edge.litertlm.Backend.GPU()
+                        else
+                            com.google.ai.edge.litertlm.Backend.CPU(),
+                        maxNumTokens = appSettings.maxTokens
+                    ),
+                    systemPrompt = "You are a text adventure game master using the text-adventure skill.",
+                    skillDir = skillDir,
+                    allowedSkills = listOf("text-adventure"),
+                    compressionThreshold = 0.75f,
+                    temperature = appSettings.temperature
+                )
+
+                if (isInitSuccess) {
+                    // 2. Load all past messages for this session
+                    val messages = withContext(Dispatchers.IO) {
+                        conversationRepository.getMessagesBySessionSync(story.id)
+                    }
+
+                    Log.d(TAG, "Restoring ${messages.size} messages to LLM context")
+
+                    // 3. Convert to service format and prime the engine
+                    val serviceMessages = messages.map { entity ->
+                        com.liteagent.textadventure.service.ContextCompressor.Message(
+                            role = entity.role,
+                            content = entity.text
+                        )
+                    }
+
+                    liteRtLmService.restoreHistory(serviceMessages)
+
+                    // 4. Update lastActive to trigger observer in MainViewModel
+                    withContext(Dispatchers.IO) {
+                        storyHistoryRepository.updateStory(story.copy(lastActive = System.currentTimeMillis()))
+                    }
+
+                    Log.d(TAG, "Context restoration complete for story: ${story.id}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Context restoration failed: ${e.message}")
+            }
+        }
     }
 }
 

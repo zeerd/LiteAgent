@@ -22,8 +22,8 @@ else
 fi
 install -d .tmp
 
-export LITERTLM_MODEL_PATH=$PROJECT_ROOT/models/gemma-4-E2B-it.litertlm
-export LITERTLM_SKILL_DIR=$PROJECT_ROOT/skills
+export LITERTLM_MODEL_PATH=$PROJECT_ROOT/../models/gemma-4-E2B-it.litertlm
+export LITERTLM_SKILL_DIR=$PROJECT_ROOT/../skills
 
 # 运行所有功能测试
 echo "========================================"

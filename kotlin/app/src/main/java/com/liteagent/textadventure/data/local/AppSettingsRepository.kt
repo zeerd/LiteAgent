@@ -54,7 +54,10 @@ data class AppSettings(
     val topP: Float = 0.9f,
     val topK: Int = 40,
     val maxTokens: Int = 32768,
-    val systemPrompt: String = "You are a Text Adventure game master. Create engaging, interactive stories where the user makes choices that affect the narrative.\nThe story should present challenges, opportunities, and choices for the player.\nRespond in-character and offer 2-4 options for the player to choose from.\nKeep the story flowing with interesting plot developments."
+    val systemPrompt: String = "You are a Text Adventure game master. Create engaging, interactive stories where the user makes choices that affect the narrative.\nThe story should present challenges, opportunities, and choices for the player.\nRespond in-character and offer 2-4 options for the player to choose from.\nKeep the story flowing with interesting plot developments.",
+    val lastSelectedFileName: String? = null,
+    val lastSelectedFileUri: String? = null,
+    val lastSelectedFileDirPath: String? = null
 ) {
     val modelEndpoint: String
         get() = when (backend) {
