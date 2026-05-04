@@ -11,9 +11,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+/**
+ * 欢迎卡片组件（作为全屏或大尺寸展示）。
+ */
 @Composable
 fun WelcomeScreen(
-    onNewStory: () -> Unit,
+    onNewStory: () -> Unit, // 点击开始新故事的回调
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -48,6 +51,7 @@ fun WelcomeScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            // “开始新故事”按钮
             Button(
                 onClick = onNewStory,
                 shape = RoundedCornerShape(16.dp),
@@ -57,7 +61,7 @@ fun WelcomeScreen(
                 )
             ) {
                 Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Default.Menu,
+                    imageVector = Icons.Default.Menu,
                     contentDescription = null
                 )
                 Spacer(modifier = Modifier.width(8.dp))

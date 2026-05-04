@@ -21,6 +21,10 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.hilt.navigation.compose.hiltViewModel
 
+/**
+ * 新故事创建界面。
+ * 用户可以在此选择背景文件、启动新游戏或查看历史记录。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewStoryScreen(
@@ -29,10 +33,12 @@ fun NewStoryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // 进入界面时，重置一些临时的 UI 状态
     LaunchedEffect(Unit) {
         viewModel.onNewStoryDismiss()
     }
 
+    // 当故事成功启动后，自动返回主界面（主界面会观察到最新故事的变化）
     LaunchedEffect(uiState.storyStarted) {
         if (uiState.storyStarted) {
             onNavigateBack()
@@ -41,6 +47,7 @@ fun NewStoryScreen(
 
     Scaffold(
         topBar = {
+            // 如果不在历史模式，显示标准的 TopAppBar
             if (!uiState.showHistory) {
                 TopAppBar(
                     title = { Text("New Story") },
@@ -62,22 +69,21 @@ fun NewStoryScreen(
                 .padding(paddingValues)
                 .padding(if (uiState.showHistory) 0.dp else 24.dp)
         ) {
+            // 定义文件选择器
             val filePickerLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.OpenDocument()
             ) { uri ->
                 uri?.let { viewModel.onFileSelected(it) }
             }
 
-            // If showing history, show history screen
+            // 根据状态决定显示“历史记录”还是“新故事创建”
             if (uiState.showHistory) {
                 HistoryScreen(
-                    onNavigateBack = {
-                        viewModel.hideHistory()
-                    },
+                    onNavigateBack = { viewModel.hideHistory() },
                     viewModel = viewModel
                 )
             } else {
-                // Story selection screen
+                // 新故事创建界面布局
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -100,7 +106,7 @@ fun NewStoryScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Open File button
+                    // 选择背景文件按钮
                     Button(
                         onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
                         modifier = Modifier
@@ -126,7 +132,7 @@ fun NewStoryScreen(
 
                     Spacer(modifier = Modifier.weight(1f))
 
-                    // History button
+                    // 查看历史记录按钮
                     Button(
                         onClick = { viewModel.onViewHistory() },
                         modifier = Modifier.fillMaxWidth(),
@@ -142,7 +148,7 @@ fun NewStoryScreen(
                         Text("View Story History")
                     }
 
-                    // Selected file name display
+                    // 展示当前选中的文件名
                     if (uiState.selectedFileName != null) {
                         Card(
                             modifier = Modifier
@@ -153,9 +159,7 @@ fun NewStoryScreen(
                                 containerColor = MaterialTheme.colorScheme.primaryContainer
                             )
                         ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
                                     text = "Selected Setting:",
                                     style = MaterialTheme.typography.titleSmall,
@@ -185,7 +189,7 @@ fun NewStoryScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Error message
+                    // 错误提示
                     if (uiState.hasError) {
                         Text(
                             text = uiState.errorMessage ?: "An unknown error occurred",
@@ -195,16 +199,14 @@ fun NewStoryScreen(
                         )
                     }
 
-                    // Action buttons
+                    // 取消和开始按钮
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         FilledTonalButton(
                             onClick = { onNavigateBack() },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Cancel")
@@ -212,9 +214,7 @@ fun NewStoryScreen(
 
                         Button(
                             onClick = viewModel::onStartStory,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             enabled = uiState.canStartStory && !uiState.startingStory,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -230,14 +230,20 @@ fun NewStoryScreen(
     }
 }
 
+/**
+ * 故事历史记录列表界面。
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HistoryScreen(
     onNavigateBack: () -> Unit,
     viewModel: NewStoryViewModel
 ) {
+    // 观察历史故事列表
     val stories by viewModel.storyHistoryRepository.getAllStories().collectAsState(initial = emptyList())
+    // 选中的条目 ID 集合
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    // 是否处于批量选择/删除模式
     var isSelectionMode by remember { mutableStateOf(false) }
 
     val dateFormatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
@@ -261,6 +267,7 @@ fun HistoryScreen(
                 }
             },
             actions = {
+                // 如果是选择模式，显示删除按钮
                 if (isSelectionMode) {
                     IconButton(onClick = {
                         viewModel.deleteSelectedStories(selectedIds.toList())
@@ -270,6 +277,7 @@ fun HistoryScreen(
                         Icon(Icons.Default.Delete, contentDescription = "Delete Selected")
                     }
                 } else if (stories.isNotEmpty()) {
+                    // 非选择模式，显示编辑按钮进入选择模式
                     IconButton(onClick = { isSelectionMode = true }) {
                         Icon(Icons.Default.Edit, contentDescription = "Selection Mode")
                     }
@@ -303,10 +311,12 @@ fun HistoryScreen(
                                         selectedIds = if (isSelected) selectedIds - story.id else selectedIds + story.id
                                         if (selectedIds.isEmpty()) isSelectionMode = false
                                     } else {
+                                        // 加载选中的故事
                                         viewModel.onLoadStory(story)
                                     }
                                 },
                                 onLongClick = {
+                                    // 长按进入选择模式
                                     if (!isSelectionMode) {
                                         isSelectionMode = true
                                         selectedIds = setOf(story.id)
@@ -349,6 +359,7 @@ fun HistoryScreen(
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
+                                // 显示故事开头的预览
                                 Text(
                                     story.storyBeginning.take(100) + "...",
                                     style = MaterialTheme.typography.bodySmall,

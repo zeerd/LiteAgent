@@ -57,6 +57,17 @@ LiteAgent_Planner/
 - Gradle 8.4+
 - Kotlin 1.9.20+
 
+#### Runtime
+
+Disclaimer: No official data found. The info below is AI-generated for reference purposes only.
+
+| Dimension	| Minimum Requirements | Recommended Specs |
+| --------- | -------------------- | ----------------- |
+| SoC (Qualcomm) | Snapdragon 8 Gen 1 / 7+ Gen 2 | Snapdragon 8 Gen 3 (QPR/NPU optimized) |
+| RAM | 6GB (Total System Capacity) | 8GB or 12GB |
+| Storage | At least 2GB free space	| 5GB+ (for storing various quantized versions) |
+| Acceleration Interface | GPU (Vulkan/OpenCL)| NPU (Hexagon/Tensor) |
+
 ### Build Commands
 
 ```bash

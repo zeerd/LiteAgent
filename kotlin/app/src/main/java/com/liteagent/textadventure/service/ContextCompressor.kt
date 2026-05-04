@@ -14,10 +14,8 @@ import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 /**
- * 上下文压缩器
- *
- * 负责将对话历史压缩为紧凑的世界状态快照。
- * 使用 LiteRT-LM 的 LLM 完成压缩任务。
+ * 上下文压缩器。
+ * 负责将冗长的对话历史压缩为紧凑的“世界状态快照”，以节省模型的上下文窗口空间。
  */
 class ContextCompressor(
     private val modelPath: String,
@@ -29,6 +27,7 @@ class ContextCompressor(
     companion object {
         private const val TAG = "ContextCompressor"
 
+        // 压缩后的快照格式模板
         private const val COMPRESSION_SNAPSHOT_FORMAT = """
 Location: [Current Location/State]
 Inventory: [Detailed list of items, quantities, and condition]
@@ -38,6 +37,7 @@ NPCs: [Key characters and their state]
 Goals: [Current objectives]
 """
 
+        // 默认的压缩指令
         private const val DEFAULT_COMPRESSION_PROMPT = """
 You are a text compression task executor, specialized in compressing conversation history into a compact world state snapshot.
 
@@ -77,11 +77,12 @@ $COMPRESSION_SNAPSHOT_FORMAT
         loadCompressionPrompt()
     }
 
+    /**
+     * 加载压缩提示词。优先从本地文件加载，否则使用硬编码默认值。
+     */
     private fun loadCompressionPrompt() {
-        // 默认压缩提示词（与 Python 版本一致）
         compressionPrompt = DEFAULT_COMPRESSION_PROMPT
 
-        // 尝试从文件加载压缩提示词
         val promptFile = findCompressionPromptFile()
         if (promptFile != null && promptFile.exists()) {
             try {
@@ -93,8 +94,10 @@ $COMPRESSION_SNAPSHOT_FORMAT
         }
     }
 
+    /**
+     * 在多个可能的位置查找压缩提示词文件。
+     */
     private fun findCompressionPromptFile(): File? {
-        // 查找压缩提示词文件
         val possiblePaths = listOf(
             File(modelPath).parent?.let { File(it, "prompts/compression.md") },
             File(modelPath).parent?.let { File(it, "compression.md") },
@@ -104,6 +107,9 @@ $COMPRESSION_SNAPSHOT_FORMAT
         return possiblePaths.find { it != null && it.exists() }
     }
 
+    /**
+     * 运行 LLM 引擎执行压缩任务。
+     */
     private suspend fun executeCompression(
         fullPrompt: String
     ): String? {
@@ -136,6 +142,9 @@ $COMPRESSION_SNAPSHOT_FORMAT
         }
     }
 
+    /**
+     * 构建最终发送给模型的压缩任务提示词。
+     */
     private fun buildCompressPrompt(historyText: String): String {
         return """
 You are a text compression task executor, specialized in compressing conversation history into a compact world state snapshot.
@@ -167,10 +176,7 @@ Now output the world state snapshot:
     }
 
     /**
-     * 压缩历史聊天记录
-     *
-     * @param historyMessages 对话历史消息列表，每条消息包含 "role" 和 "content" 字段
-     * @return 压缩后的文本，压缩成功返回字符串，失败返回 null
+     * 核心压缩方法：将对话历史转换为快照字符串。
      */
     suspend fun compressHistory(
         historyMessages: List<Message>
@@ -180,7 +186,7 @@ Now output the world state snapshot:
             return null
         }
 
-        // 格式历史对话
+        // 格式化对话历史以便模型阅读
         val historyText = historyMessages.joinToString("\n") { msg ->
             val roleLabel = when (msg.role) {
                 "user" -> "User"
@@ -190,41 +196,31 @@ Now output the world state snapshot:
             "$roleLabel: ${msg.content}"
         }
 
-        // 构建完整的压缩提示词
         val fullPrompt = buildCompressPrompt(historyText)
-
-        // 使用 LiteRT-LM 生成压缩结果
         return executeCompression(fullPrompt)
     }
 
     /**
-     * 压缩历史快照
-     * 使用压缩后的历史重新执行 send_message
-     *
-     * @param compressedHistory 压缩后的历史快照
-     * @param systemPrompt 系统提示词
-     * @return 构建的新消息列表 (role, content) pairs
+     * 辅助方法：基于压缩后的快照构建新的消息序列。
      */
     fun compressAndRetry(
         compressedHistory: String,
         systemPrompt: String,
         recentMessages: List<Message> = emptyList()
     ): List<Pair<String, String>> {
-        Log.d(TAG, "📜 Compressed history length: ${compressedHistory.length} chars")
-
         val messages = mutableListOf<Pair<String, String>>()
 
         try {
-            // 系统提示 + 压缩历史
+            // [系统提示词]
             messages.add("system" to systemPrompt)
 
-            // 压缩的历史作为用户消息
+            // [压缩后的世界状态快照] (作为第一个用户输入)
             messages.add("user" to compressedHistory)
 
-            // 助手响应
+            // [模型确认已理解状态]
             messages.add("assistant" to "Acknowledged.")
 
-            // 添加最近的消息（可选，帮助 LLM 理解当前对话流）
+            // [（可选）添加最近的几轮对话以保持语义连贯]
             val recent = if (recentMessages.size >= 4) {
                 recentMessages.takeLast(4)
             } else {
@@ -238,17 +234,21 @@ Now output the world state snapshot:
             return messages
         } catch (e: Exception) {
             Log.e(TAG, "Error building compressed messages: ${e.message}")
-            e.printStackTrace()
             return emptyList()
         }
     }
 
+    /**
+     * 释放压缩器所占用的引擎资源。
+     */
     fun close() {
         engine?.close()
         engine = null
     }
 
-    // 内部数据类
+    /**
+     * 内部消息数据类。
+     */
     data class Message(
         val role: String,
         val content: String

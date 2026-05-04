@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.liteagent.textadventure.data.local.AppSettings
+import com.liteagent.textadventure.R
 import com.liteagent.textadventure.data.local.AppSettingsRepository
 import com.liteagent.textadventure.data.local.StorySettingsDataSource
 import com.liteagent.textadventure.service.LiteRtLmService
@@ -23,6 +24,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
+/**
+ * 设置界面的视图模型。
+ * 处理应用程序配置、模型下载、模型选择以及本地 AI 引擎的参数调整。
+ */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
@@ -34,6 +39,7 @@ class SettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+    // 导出的各个状态流，方便 UI 组件细粒度观察
     val selectedBackend: StateFlow<String> = _uiState
         .map { it.selectedBackend }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _uiState.value.selectedBackend)
@@ -54,6 +60,7 @@ class SettingsViewModel @Inject constructor(
 
     private var lastDownloadId: Long = -1
 
+    // 监听下载完成的广播接收器
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) ?: -1
@@ -64,9 +71,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     init {
+        // 加载当前已保存的设置
         loadSettings()
 
-        // Register download receiver
+        // 注册下载完成广播
         val filter = IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             context.registerReceiver(downloadReceiver, filter, Context.RECEIVER_EXPORTED)
@@ -75,23 +83,28 @@ class SettingsViewModel @Inject constructor(
             context.registerReceiver(downloadReceiver, filter)
         }
 
-        // Observe LiteRT-LM status
+        // 观察 AI 引擎的初始化状态
         viewModelScope.launch {
             liteRtLmService.isInitialized.collect { isInitialized ->
                 _uiState.update { it.copy(isModelInitialized = isInitialized) }
             }
         }
 
-        // Initialize if path exists
+        // 如果已经配置了模型路径，尝试初始化引擎
         val settings = appSettingsRepository.getSettings()
         if (settings.selectedModelPath != null) {
-            saveSettings() // Re-initialize with saved settings
+            saveSettings()
         }
     }
 
+    /**
+     * 从存储库加载设置到 UI 状态中。
+     */
     private fun loadSettings() {
         val settings = appSettingsRepository.getSettings()
+        val defaultPrompt = context.getString(R.string.default_system_prompt)
         tempSettings = SettingsUiState(
+            language = settings.language,
             selectedBackend = settings.backend,
             accelerationMode = settings.accelerationMode,
             selectedModelPath = settings.selectedModelPath,
@@ -100,7 +113,7 @@ class SettingsViewModel @Inject constructor(
             topP = settings.topP,
             topK = settings.topK,
             maxTokens = settings.maxTokens,
-            systemPrompt = settings.systemPrompt,
+            systemPrompt = settings.systemPrompt ?: defaultPrompt,
             isModelInitialized = settings.backend != "huggingface"
         )
         _uiState.value = tempSettings
@@ -110,11 +123,12 @@ class SettingsViewModel @Inject constructor(
         super.onCleared()
         try {
             context.unregisterReceiver(downloadReceiver)
-        } catch (e: Exception) {
-            // Already unregistered
-        }
+        } catch (e: Exception) {}
     }
 
+    /**
+     * 处理模型文件下载完成后的逻辑，自动移动文件到专用目录。
+     */
     private fun handleDownloadComplete(downloadId: Long) {
         val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         val query = DownloadManager.Query().setFilterById(downloadId)
@@ -128,21 +142,17 @@ class SettingsViewModel @Inject constructor(
 
                 if (sourceFile.exists()) {
                     val targetDir = File(Environment.getExternalStorageDirectory(), "TextAdventure/models")
-                    if (!targetDir.exists()) {
-                        targetDir.mkdirs()
-                    }
+                    if (!targetDir.exists()) targetDir.mkdirs()
 
                     val targetFile = File(targetDir, fileName)
 
-                    // Try rename, if fails (cross-volume), try copy
+                    // 移动或拷贝文件到应用专用的模型目录
                     val success = if (sourceFile.renameTo(targetFile)) {
                         true
                     } else {
                         try {
                             sourceFile.inputStream().use { input ->
-                                targetFile.outputStream().use { output ->
-                                    input.copyTo(output)
-                                }
+                                targetFile.outputStream().use { output -> input.copyTo(output) }
                             }
                             sourceFile.delete()
                             true
@@ -159,12 +169,16 @@ class SettingsViewModel @Inject constructor(
                         saveSettings()
                         showMessage("Model moved to TextAdventure/models and auto-selected.")
                     } else {
-                        showMessage("Download complete. Please manually move the file from Downloads to TextAdventure/models")
+                        showMessage("Download complete. Please manually move the file to TextAdventure/models")
                     }
                 }
             }
         }
         cursor.close()
+    }
+
+    fun onLanguageSelected(language: String) {
+        _uiState.update { it.copy(language = language) }
     }
 
     fun onBackendSelected(backend: String) {
@@ -195,9 +209,13 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(systemPrompt = prompt) }
     }
 
+    /**
+     * 保存当前 UI 状态中的所有设置到持久化存储。
+     */
     fun saveSettings() {
         val currentState = _uiState.value
         val settings = AppSettings(
+            language = currentState.language,
             backend = currentState.selectedBackend,
             accelerationMode = currentState.accelerationMode,
             selectedModelPath = currentState.selectedModelPath,
@@ -210,7 +228,10 @@ class SettingsViewModel @Inject constructor(
         )
         appSettingsRepository.saveSettings(settings)
 
-        // Update LiteRT-LM service
+        // 应用语言设置变更
+        updateLocale(currentState.language)
+
+        // 重新初始化 AI 服务
         viewModelScope.launch {
             try {
                 if (settings.selectedModelPath != null) {
@@ -222,7 +243,10 @@ class SettingsViewModel @Inject constructor(
                             com.google.ai.edge.litertlm.Backend.CPU(),
                         maxNumTokens = settings.maxTokens
                     )
-                    liteRtLmService.initialize(config, settings.systemPrompt)
+                    liteRtLmService.initialize(
+                        engineConfig = config,
+                        systemPrompt = settings.systemPrompt ?: context.getString(R.string.default_system_prompt)
+                    )
                 }
             } catch (e: Exception) {
                 showMessage("Failed to initialize engine: ${e.message}")
@@ -233,6 +257,20 @@ class SettingsViewModel @Inject constructor(
         viewSavedMessage()
     }
 
+    /**
+     * 更新应用程序的本地化语言。
+     */
+    private fun updateLocale(language: String) {
+        val locale = if (language == "zh") java.util.Locale.CHINESE else java.util.Locale.ENGLISH
+        java.util.Locale.setDefault(locale)
+        val config = context.resources.configuration
+        config.setLocale(locale)
+        context.createConfigurationContext(config)
+
+        @Suppress("DEPRECATION")
+        context.resources.updateConfiguration(config, context.resources.displayMetrics)
+    }
+
     fun cancelSettings() {
         _uiState.update { it.copy(showCancel = false) }
     }
@@ -241,24 +279,20 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(showSavedMessage = false) }
     }
 
+    /**
+     * 当用户从本地文件系统选择一个模型文件时。
+     */
     fun onModelFileSelected(uri: Uri) {
         viewModelScope.launch {
             try {
-                // Get the file name from URI
                 val fileName = getFileNameFromUri(uri) ?: "model.litertlm"
-
-                // Create directory for models
                 val modelDir = liteRtLmService.getOrCreateModelFolder()
                 val targetFile = File(modelDir, fileName)
 
-                // Copy file to the model directory
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     targetFile.outputStream().use { output ->
                         val bytesCopied = input.copyTo(output)
-                        Log.d("SettingsViewModel", "Copied $bytesCopied bytes to ${targetFile.absolutePath}")
-                        if (bytesCopied == 0L) {
-                            throw IllegalStateException("Copied 0 bytes. Source file might be empty or inaccessible.")
-                        }
+                        if (bytesCopied == 0L) throw IllegalStateException("Source file inaccessible.")
                     }
                 }
 
@@ -281,25 +315,23 @@ class SettingsViewModel @Inject constructor(
             cursor?.use {
                 if (it.moveToFirst()) {
                     val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (nameIndex != -1) {
-                        fileName = it.getString(nameIndex)
-                    }
+                    if (nameIndex != -1) fileName = it.getString(nameIndex)
                 }
             }
         }
-        if (fileName == null) {
-            fileName = uri.path?.substringAfterLast('/')
-        }
+        if (fileName == null) fileName = uri.path?.substringAfterLast('/')
         return fileName
     }
 
+    /**
+     * 开始从指定的后端（HuggingFace/ModelScope）下载预定义模型。
+     */
     fun downloadModel() {
         val backend = _uiState.value.selectedBackend
         val url = if (backend == "huggingface") {
             "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm"
         } else {
             "https://modelscope.cn/models/litert-community/gemma-4-E2B-it-litert-lm/resolve/master/gemma-4-E2B-it.litertlm"
-            // "https://modelscope.cn/models/litert-community/gemma-4-E2B-it-litert-lm/resolve/master/README.md"
         }
 
         val fileName = "gemma-4-E2B-it.litertlm"
@@ -315,7 +347,7 @@ class SettingsViewModel @Inject constructor(
         try {
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             lastDownloadId = downloadManager.enqueue(request)
-            showMessage("Download started to Downloads directory. It will be auto-moved upon completion.")
+            showMessage("Download started. It will be auto-moved upon completion.")
         } catch (e: Exception) {
             showMessage("Download failed: ${e.message}")
         }
@@ -325,6 +357,9 @@ class SettingsViewModel @Inject constructor(
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
+    /**
+     * 跳转到模型所在的组织主页。
+     */
     fun onOpenFolderClick() {
         val backend = _uiState.value.selectedBackend
         val url = if (backend == "huggingface") {
@@ -349,8 +384,11 @@ class SettingsViewModel @Inject constructor(
     }
 }
 
-// Settings UI State
+/**
+ * 设置界面的 UI 状态。
+ */
 data class SettingsUiState(
+    val language: String = "zh",
     val selectedBackend: String = "huggingface",
     val accelerationMode: String = "CPU",
     val selectedModelPath: String? = null,
@@ -359,18 +397,15 @@ data class SettingsUiState(
     val topP: Float = 0.9f,
     val topK: Int = 40,
     val maxTokens: Int = 32768,
-    val systemPrompt: String = "You are a Text Adventure game master. Create engaging, interactive stories where the user makes choices that affect the narrative.",
+    val systemPrompt: String = "You are a Text Adventure game master.",
     val isModelInitialized: Boolean = false,
 
-    // Download status
     val modelDownloading: Boolean = false,
     val modelDownloadSuccess: Boolean = false,
     val modelDownloadError: Boolean = false,
 
-    // Saved message
     val showSavedMessage: Boolean = false,
     val showCancel: Boolean = false,
 
-    // Model initialization status
     val showModelInitialized: Boolean = false
 )

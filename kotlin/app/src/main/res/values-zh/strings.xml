@@ -1,0 +1,84 @@
+<resources>
+    <string name="app_name">文字冒险</string>
+
+    <!-- Navigation -->
+    <string name="nav_main">主页</string>
+    <string name="nav_settings">设置</string>
+    <string name="nav_new_story">新故事</string>
+
+    <!-- Main Screen -->
+    <string name="chat_placeholder">输入消息...</string>
+    <string name="welcome_message_text">欢迎来到文字冒险！从“新故事”开始你的冒险之旅。</string>
+    <string name="no_story_message">请在“新故事”页面选择一个故事背景开始游戏。</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">设置</string>
+    <string name="language_settings_title">语言设置</string>
+    <string name="language_zh">中文 (Chinese)</string>
+    <string name="language_en">英文 (English)</string>
+    <string name="model_backend_title">模型后端</string>
+    <string name="model_backend_huggingface">HuggingFace</string>
+    <string name="model_backend_modelscope">魔搭社区 (ModelScope)</string>
+    <string name="download_models">下载模型</string>
+    <string name="select_model">选择模型</string>
+    <string name="open_folder">打开文件夹</string>
+    <string name="llm_config_title">LLM 配置</string>
+    <string name="temperature">温度 (Temperature)</string>
+    <string name="max_tokens">最大 Token 数</string>
+    <string name="system_prompt">系统提示词 (System Prompt)</string>
+    <string name="save_settings">保存设置</string>
+    <string name="cancel_settings">取消</string>
+    <string name="settings_saved">设置已保存！</string>
+    <string name="hardware_acceleration">硬件加速</string>
+    <string name="current_model">当前模型：</string>
+    <string name="none_selected">未选择</string>
+    <string name="web_browser">网页浏览器</string>
+
+    <!-- New Story Screen -->
+    <string name="new_story_title">新故事</string>
+    <string name="select_story_setting">选择故事背景</string>
+    <string name="story_setting_fantasy">奇幻冒险</string>
+    <string name="story_setting_scifi">科幻迷局</string>
+    <string name="story_setting_horror">惊悚恐怖</string>
+    <string name="story_setting_romance">浪漫剧场</string>
+    <string name="story_setting_mystery">侦探解谜</string>
+    <string name="view_history">查看历史</string>
+    <string name="start_story">开始故事</string>
+    <string name="cancel_new_story">取消</string>
+    <string name="story_started">故事已开始！</string>
+    <string name="select_story_error">请选择一个故事背景</string>
+
+    <!-- Quick Actions -->
+    <string name="quick_action_continue">继续</string>
+    <string name="quick_action_examine">观察</string>
+    <string name="quick_action_help">帮助</string>
+    <string name="quick_action_restart">重新开始</string>
+
+    <!-- Common -->
+    <string name="ok">确定</string>
+    <string name="cancel">取消</string>
+    <string name="save">保存</string>
+    <string name="back">返回</string>
+    <string name="load_more">加载更多</string>
+    <string name="retry">重试</string>
+    <string name="error_title">错误</string>
+    <string name="loading">加载中...</string>
+
+    <!-- History -->
+    <string name="history_title">故事历史</string>
+    <string name="no_history">暂无历史记录</string>
+    <string name="delete_history">删除历史</string>
+    <string name="delete_confirm">确定要删除这个故事吗？</string>
+
+    <!-- Messages -->
+    <string name="model_download_start">开始下载模型...</string>
+    <string name="model_download_success">模型下载成功！</string>
+    <string name="model_download_error">模型下载失败</string>
+    <string name="conversation_started">新对话已开启</string>
+    <string name="conversation_ended">故事已结束</string>
+
+    <!-- Prompts -->
+    <string name="default_system_prompt">你是一位文字冒险游戏主持人。请创造引人入胜、互动性强的故事情节，让用户的选择影响剧情发展。\n故事应为玩家提供挑战、机会和选择。\n请以角色身份回应，并提供 2-4 个选项供玩家选择。\n保持故事情节流畅，并带有有趣的剧情发展。</string>
+    <string name="language_instruction_prompt">请使用中文与用户交流。</string>
+
+</resources>

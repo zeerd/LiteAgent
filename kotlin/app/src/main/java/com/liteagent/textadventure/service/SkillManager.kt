@@ -1,6 +1,7 @@
 package com.liteagent.textadventure.service
 
 import android.util.Log
+import com.liteagent.textadventure.R
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -11,14 +12,14 @@ import java.nio.file.Files
 import java.nio.file.Paths
 
 /**
- * Skill - SKILL.md 解析后的技能对象
+ * 技能数据类，代表从 SKILL.md 解析出的一个功能模块。
  */
 data class Skill(
-    val name: String,
-    val description: String,
-    val instructions: String,
-    val metadata: Map<String, Any> = emptyMap(),
-    val skillDir: String = ""
+    val name: String, // 技能名称
+    val description: String, // 技能描述
+    val instructions: String, // 详细的操作指令
+    val metadata: Map<String, Any> = emptyMap(), // 其他元数据
+    val skillDir: String = "" // 技能文件所在目录
 ) {
     override fun toString(): String {
         return "Skill(name='$name', description='$description')"
@@ -26,23 +27,26 @@ data class Skill(
 }
 
 /**
- * 简化的 YAML 解析器，支持基本 key: value 格式和嵌套 metadata
+ * 技能解析器，用于解析 Markdown 格式的技能文件。
  */
 class SkillParser {
     companion object {
         private const val TAG = "SkillParser"
     }
 
+    /**
+     * 解析字符串形式的技能内容。
+     */
     @Throws(IllegalArgumentException::class)
     fun parse(skillContent: String, skillDir: String): Skill {
         val parts = skillContent.split("---")
         if (parts.size < 3) {
             throw IllegalArgumentException(
-                "Invalid SKILL.md format: missing frontmatter delimiter. " +
-                        "Expected at least 3 parts separated by '---'"
+                "Invalid SKILL.md format: missing frontmatter delimiter."
             )
         }
 
+        // 解析头部 YAML 内容
         val yamlContent = parts[1].trim()
         val frontmatter = parseSimpleYaml(yamlContent)
 
@@ -68,6 +72,9 @@ class SkillParser {
         )
     }
 
+    /**
+     * 解析指定路径的文件。
+     */
     @Throws(IllegalArgumentException::class)
     fun parseFile(filePath: String): Skill {
         val file = File(filePath)
@@ -80,6 +87,9 @@ class SkillParser {
         return parse(content, skillDir)
     }
 
+    /**
+     * 简单的 YAML 解析器。
+     */
     @Throws(IllegalArgumentException::class)
     private fun parseSimpleYaml(yamlText: String): Map<String, Any> {
         val result = mutableMapOf<String, Any>()
@@ -99,28 +109,22 @@ class SkillParser {
             val key = trimmed.substring(0, colonIndex).trim()
             var value = trimmed.substring(colonIndex + 1).trim()
 
-            // Skip metadata key if nested
+            // 处理 metadata 嵌套节
             if ("  " in trimmed && key == "metadata") {
                 currentSection = "metadata"
                 result["metadata"] = mutableMapOf<String, Any>()
                 return@forEach
             }
 
-            // Handle metadata section
             if (currentSection == "metadata" && key != "metadata") {
                 val parsedValue = parseValue(value)
-
-                // 获取现有的 Map，如果不存在则创建一个，然后进行转换并添加值
                 @Suppress("UNCHECKED_CAST")
                 val metadataMap = result.getOrPut("metadata") { mutableMapOf<String, Any>() } as MutableMap<String, Any>
                 metadataMap[key] = parsedValue
-
                 return@forEach
             }
 
-            // Standard key-value
             val parsedValue = parseValue(value)
-
             currentSection = null
             result[key] = parsedValue
         }
@@ -128,28 +132,24 @@ class SkillParser {
         return result
     }
 
+    /**
+     * 将字符串值转换为对应的基本类型（Boolean, Int 等）。
+     */
     private fun parseValue(valueStr: String): Any {
         val value = valueStr.trim('\"', '\'')
-
-        // Boolean
         when (value.lowercase()) {
             "true" -> return true
             "false" -> return false
         }
-
-        // Integer
         try {
             return value.toInt()
-        } catch (e: NumberFormatException) {
-            // Not an integer
-        }
-
+        } catch (e: NumberFormatException) {}
         return value
     }
 }
 
 /**
- * 技能管理器 - 加载和管理多个 SKILL.md
+ * 技能管理器，负责从指定目录加载技能并进行管理。
  */
 class SkillManager(
     private val skillDir: String = "",
@@ -160,7 +160,6 @@ class SkillManager(
     }
 
     private val _skills = mutableMapOf<String, Skill>()
-    private val _skillDir = skillDir
     private val _allowedSkillList = allowedSkillList ?: emptyList()
 
     init {
@@ -169,6 +168,9 @@ class SkillManager(
         }
     }
 
+    /**
+     * 递归加载目录下所有的技能。
+     */
     @Throws(IllegalArgumentException::class)
     fun loadSkills(skillDir: String): List<Skill> {
         val loaded = mutableListOf<Skill>()
@@ -182,79 +184,49 @@ class SkillManager(
             if (!item.isDirectory) return@forEach
 
             val skillFile = File(item.path, "SKILL.md")
-            if (!skillFile.exists()) {
-                Log.d(TAG, "Skipping ${item.name}: no SKILL.md")
-                return@forEach
-            }
+            if (!skillFile.exists()) return@forEach
 
             try {
                 val skill = SkillParser().parseFile(skillFile.absolutePath)
-
-                // 白名单过滤
+                // 如果定义了白名单，只加载名单内的技能
                 if (_allowedSkillList.isNotEmpty()) {
                     if (_allowedSkillList.contains(skill.name)) {
                         _skills[skill.name] = skill
                         loaded.add(skill)
-                        Log.d(TAG, "✅ Loaded (whitelist match): ${skill.name}")
-                    } else {
-                        Log.d(TAG, "⏭️ Skipped (not in whitelist): ${skill.name}")
                     }
                 } else {
-                    // 无白名单，加载所有技能
                     _skills[skill.name] = skill
                     loaded.add(skill)
-                    Log.d(TAG, "✅ Loaded: ${skill.name}")
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to load ${skillFile.absolutePath}: ${e.message}")
             }
         }
-
         return loaded
     }
 
-    fun getSkill(name: String): Skill? {
-        return _skills[name]
-    }
+    fun getSkill(name: String): Skill? = _skills[name]
 
-    fun getAllSkills(): List<Skill> {
-        return _skills.values.toList()
-    }
+    fun getAllSkills(): List<Skill> = _skills.values.toList()
 
-    fun getSkillsList(): String {
-        return _skills.values.joinToString("\n") { skill ->
-            "- ${skill.name}: ${skill.description}"
-        }
-    }
-
-    fun getSkillsNames(): List<String> {
-        return _skills.keys.toList()
-    }
+    fun getSkillsNames(): List<String> = _skills.keys.toList()
 }
 
 /**
- * System Prompt 构建器 - 注入技能描述到 system prompt
+ * 系统提示词注入器，将技能信息织入模型的基础提示词中。
  */
 class PromptInjector {
-
-    companion object {
-        private const val TAG = "PromptInjector"
-    }
-
     /**
-     * 构建注入技能的 system prompt
-     *
-     * @param skills 技能列表
-     * @param includeInstructions 是否包含完整的技能指令 (默认 False，仅包含 name/description)
-     * @return 完整的 system prompt
+     * 构建包含技能描述的系统提示词。
      */
     fun buildInstrumentedPrompt(
+        context: android.content.Context,
         skills: List<Skill>,
         includeInstructions: Boolean = false
     ): String {
         val skillsText = formatSkills(skills)
 
-        val basePrompt = """
+        return """
 You are an AI assistant that helps users by answering questions and completes tasks using skills. For EVERY new task or request or question, you MUST execute the following steps in exact order. You MUST NOT skip any steps.
 
 CRITICAL RULE: You MUST execute all steps silently. Do NOT generate or output any internal thoughts, reasoning, explanations, or intermediate text at ANY step.
@@ -269,37 +241,21 @@ After this step you MUST go to next step. You MUST NOT use `run_intent` under an
 
 3. Follow the skill's instructions exactly to complete the task. You MUST NOT output any intermediate thoughts or status updates. No exceptions! Output ONLY the final result when successful. It should contain one-sentence summary of the action taken, and the final result of the skill.
 """
-
-        return basePrompt.ifEmpty {
-            "You are a helpful AI assistant."
-        }
-    }
-
-    @Suppress("unused")
-    private fun loadSkillInstructions(skillName: String): String {
-        return "# Skill Instructions\n\n" +
-                "No instructions available for skill: $skillName"
     }
 
     private fun formatSkills(skills: List<Skill>): String {
-        if (skills.isEmpty()) {
-            return "(No skills available)"
-        }
-
-        val sortedSkills = skills.sortedBy { it.name }
-        return sortedSkills.joinToString("\n") { skill ->
+        if (skills.isEmpty()) return "(No skills available)"
+        return skills.sortedBy { it.name }.joinToString("\n") { skill ->
             "- `${skill.name}`: ${skill.description}"
         }
     }
 }
 
 /**
- * load_skill 工具调用结果格式化
+ * 技能加载响应的格式化器。
  */
 class LoadSkillResponseFormatter {
     companion object {
-        private const val TAG = "LoadSkillResponseFormatter"
-
         private const val LOAD_SKILL_RESPONSE_TEMPLATE = """
 ## ✅ 已加载技能：{name}
 
@@ -316,20 +272,15 @@ class LoadSkillResponseFormatter {
 
     fun format(name: String, description: String, metadata: Map<String, Any>,
                instructions: String): String {
-        val metadataText = if (metadata.isEmpty()) {
-            "N/A"
-        } else {
-            metadata.entries.joinToString("\n") { (key, value) ->
-                "  - $key: $value"
-            }
+        val metadataText = if (metadata.isEmpty()) "N/A" else {
+            metadata.entries.joinToString("\n") { (key, value) -> "  - $key: $value" }
         }
 
-        val formatted = LOAD_SKILL_RESPONSE_TEMPLATE
+        return LOAD_SKILL_RESPONSE_TEMPLATE
             .replace("{name}", name)
             .replace("{description}", description)
             .replace("{metadata}", metadataText)
             .replace("{instructions}", instructions.trim())
-
-        return formatted.trim()
+            .trim()
     }
 }

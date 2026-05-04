@@ -24,6 +24,10 @@ import java.io.FileOutputStream
 import java.util.UUID
 import javax.inject.Inject
 
+/**
+ * 新故事界面的视图模型。
+ * 负责处理故事背景选择、文件导入以及启动新冒险的逻辑。
+ */
 @HiltViewModel
 class NewStoryViewModel @Inject constructor(
     private val storySettingsDataSource: StorySettingsDataSource,
@@ -38,36 +42,41 @@ class NewStoryViewModel @Inject constructor(
         private const val TAG = "NewStoryViewModel"
     }
 
+    // UI 状态
     private val _uiState = MutableStateFlow(NewStoryUiState())
     val uiState: StateFlow<NewStoryUiState> = _uiState.asStateFlow()
 
+    // 预定义故事设置和当前选中的设置
     val storySettings: StateFlow<List<StorySetting>> = storySettingsDataSource.storySettings
     val selectedSetting: StateFlow<StorySetting?> = storySettingsDataSource.selectedSetting
 
+    // 外部导入文件的相关信息
     private var selectedSettingFileUri: Uri? = null
     private var selectedSettingFileName: String? = null
     private var selectedSettingDirPath: String? = null
 
     init {
         Log.d(TAG, "Initializing NewStoryViewModel")
+        // 观察 AI 模型的就绪状态
         viewModelScope.launch {
             liteRtLmService.isInitialized.collect { isInitialized ->
-                Log.d(TAG, "LiteRT-LM initialized state changed: $isInitialized")
                 _uiState.update { it.copy(isModelInitialized = isInitialized) }
             }
         }
+        // 加载上次选择的文件记录
         loadLastSelectedFile()
     }
 
+    /**
+     * 从配置中恢复上次选择的文件。
+     */
     private fun loadLastSelectedFile() {
-        Log.d(TAG, "Loading last selected file from settings")
         val settings = appSettingsRepository.getSettings()
         selectedSettingFileName = settings.lastSelectedFileName
         selectedSettingFileUri = settings.lastSelectedFileUri?.let { Uri.parse(it) }
         selectedSettingDirPath = settings.lastSelectedFileDirPath
 
         if (selectedSettingFileName != null) {
-            Log.d(TAG, "Restoring selection: $selectedSettingFileName")
             val fileNameWithoutExt = getFileNameWithoutExtension(selectedSettingFileName!!)
             _uiState.update {
                 it.copy(
@@ -78,39 +87,36 @@ class NewStoryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 当选中一个预设的故事背景时触发。
+     */
     fun onSettingSelected(setting: StorySetting) {
-        Log.d(TAG, "Story setting selected: ${setting.id}")
         storySettingsDataSource.selectSetting(setting)
     }
 
+    /**
+     * 当用户从外部选择了一个背景文件时触发。
+     */
     fun onFileSelected(uri: Uri) {
-        Log.d(TAG, "File selected: $uri")
         viewModelScope.launch {
             try {
-                // Get the file name from URI
+                // 获取文件名并处理
                 val fileName = getFileNameFromUri(uri) ?: "untitled"
                 val fileNameWithoutExt = getFileNameWithoutExtension(fileName)
 
-                // Store the URI and file name
                 selectedSettingFileUri = uri
                 selectedSettingFileName = fileName
 
-                // Create directory under TextAdventure/stories/  {filename}/
+                // 在外部存储中创建该故事的私有目录
                 val storiesDir = File(context.getExternalFilesDir(null), "TextAdventure/stories")
-                if (!storiesDir.exists()) {
-                    storiesDir.mkdirs()
-                }
+                if (!storiesDir.exists()) storiesDir.mkdirs()
 
                 val storyDir = File(storiesDir, fileNameWithoutExt)
-                if (!storyDir.exists()) {
-                    storyDir.mkdirs()
-                }
+                if (!storyDir.exists()) storyDir.mkdirs()
 
                 selectedSettingDirPath = storyDir.absolutePath
 
-                Log.d(TAG, "Copying selected file to: ${storyDir.absolutePath}")
-
-                // Copy file to the new directory
+                // 将选中的文件拷贝到应用程序的内部存储中
                 val inputStream = context.contentResolver.openInputStream(uri)
                 val destinationFile = File(storyDir, fileName)
                 if (inputStream != null) {
@@ -120,7 +126,7 @@ class NewStoryViewModel @Inject constructor(
                     inputStream.close()
                 }
 
-                // Update UI state to show file name and enable button
+                // 更新 UI 状态
                 _uiState.update {
                     it.copy(
                         selectedFileName = fileNameWithoutExt,
@@ -128,8 +134,7 @@ class NewStoryViewModel @Inject constructor(
                     )
                 }
 
-                // Persist the selection
-                Log.d(TAG, "Persisting file selection in settings")
+                // 持久化当前选择
                 val currentSettings = appSettingsRepository.getSettings()
                 appSettingsRepository.saveSettings(currentSettings.copy(
                     lastSelectedFileName = fileName,
@@ -140,15 +145,15 @@ class NewStoryViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Error selecting file: ${e.message}", e)
                 _uiState.update {
-                    it.copy(
-                        selectedFileName = null,
-                        canStartStory = false
-                    )
+                    it.copy(selectedFileName = null, canStartStory = false)
                 }
             }
         }
     }
 
+    /**
+     * 从 URI 中提取文件名。
+     */
     private fun getFileNameFromUri(uri: Uri): String? {
         var fileName: String? = null
         if (uri.scheme == "content") {
@@ -157,40 +162,29 @@ class NewStoryViewModel @Inject constructor(
                 if (it.moveToFirst()) {
                     val nameIndex = android.provider.OpenableColumns.DISPLAY_NAME
                     val index = it.getColumnIndex(nameIndex)
-                    if (index != -1) {
-                        fileName = it.getString(index)
-                    }
+                    if (index != -1) fileName = it.getString(index)
                 }
             }
         }
-        if (fileName == null) {
-            fileName = uri.path?.substringAfterLast('/')
-        }
+        if (fileName == null) fileName = uri.path?.substringAfterLast('/')
         return fileName
     }
 
     private fun getFileNameWithoutExtension(fileName: String): String {
-        return if (fileName.contains('.')) {
-            fileName.substringBeforeLast('.')
-        } else {
-            fileName
-        }
+        return if (fileName.contains('.')) fileName.substringBeforeLast('.') else fileName
     }
 
+    /**
+     * 将 assets 中的技能定义提取到内部存储，以便 AI 引擎加载。
+     */
     private fun extractSkillsFromAssets(): String {
         val skillsDir = File(context.filesDir, "skills")
-        if (!skillsDir.exists()) {
-            skillsDir.mkdirs()
-        }
+        if (!skillsDir.exists()) skillsDir.mkdirs()
 
         try {
             val assetManager = context.assets
-            // The folder structure in assets is skills/text-adventure/SKILL.md
-            // We need to recreate this in internal storage
             val textAdventureDir = File(skillsDir, "text-adventure")
-            if (!textAdventureDir.exists()) {
-                textAdventureDir.mkdirs()
-            }
+            if (!textAdventureDir.exists()) textAdventureDir.mkdirs()
 
             val skillFile = File(textAdventureDir, "SKILL.md")
             if (!skillFile.exists()) {
@@ -202,26 +196,24 @@ class NewStoryViewModel @Inject constructor(
             }
             return skillsDir.absolutePath
         } catch (e: Exception) {
-            e.printStackTrace()
             return ""
         }
     }
 
+    /**
+     * 点击“开始故事”后的逻辑流程。
+     */
     fun onStartStory() {
         val fileName = selectedSettingFileName ?: return
         val settingDirPath = selectedSettingDirPath ?: return
 
-        Log.d(TAG, "Starting new story with file: $fileName")
-
         val storyId = UUID.randomUUID().toString()
         _uiState.update { it.copy(startingStory = true, storyStarted = true, newStoryId = storyId, hasError = false) }
 
-        // Use LiteRtLmService's long-lived scope to avoid JobCancellationException when navigating back
+        // 使用服务的长生命周期作用域进行初始化，防止由于页面导航导致 Job 取消
         liteRtLmService.getScope().launch {
             try {
-                Log.d(TAG, "Background initialization started for storyId: $storyId")
-
-                // Initial history entry (empty or with title)
+                // 1. 在历史数据库中创建初始条目
                 val initialHistoryEntry = StoryHistoryEntity(
                     id = storyId,
                     settingId = selectedSettingFileUri?.toString() ?: "",
@@ -231,35 +223,27 @@ class NewStoryViewModel @Inject constructor(
                     createdAt = System.currentTimeMillis(),
                     lastActive = System.currentTimeMillis()
                 )
-                Log.d(TAG, "Saving initial history entry for storyId: $storyId")
                 storyHistoryRepository.addStory(initialHistoryEntry)
 
                 withContext(Dispatchers.IO) {
-                    // Read the selected file content
+                    // 读取选中的背景文件内容
                     val settingFile = File(settingDirPath, fileName)
                     val settingContent = if (settingFile.exists()) {
                         settingFile.readText()
                     } else {
-                        Log.e(TAG, "Setting file not found: ${settingFile.absolutePath}")
                         throw IllegalArgumentException("Setting file not found")
                     }
 
-                    Log.d(TAG, "Background setting content read (${settingContent.length} chars)")
-
-                    // Get app settings for model path
                     val appSettings = appSettingsRepository.getSettings()
                     val modelPath = appSettings.selectedModelPath
 
                     if (modelPath == null || !File(modelPath).exists()) {
-                        Log.e(TAG, "Model path invalid: $modelPath")
-                        throw IllegalStateException("Model not found. Please download or select a model in Settings first.")
+                        throw IllegalStateException("Model not found. Please select a model in Settings first.")
                     }
 
-                    // Extract skills from assets to internal storage
                     val skillDir = extractSkillsFromAssets()
 
-                    Log.d(TAG, "Initializing LiteRT-LM for new story...")
-                    // Initialize LiteRT-LM for text-adventure skill
+                    // 2. 初始化 AI 引擎
                     val isInitSuccess = liteRtLmService.initialize(
                         engineConfig = liteRtLmService.getEngineConfig().copy(
                             modelPath = modelPath,
@@ -277,36 +261,19 @@ class NewStoryViewModel @Inject constructor(
                     )
 
                     if (!isInitSuccess) {
-                        val errorMsg = liteRtLmService.error.value ?: "Unknown error"
-                        Log.e(TAG, "LiteRT-LM initialization failed: $errorMsg")
-                        throw IllegalStateException("Failed to initialize LiteRT-LM: $errorMsg")
+                        throw IllegalStateException("Failed to initialize LiteRT-LM")
                     }
 
-                    Log.d(TAG, "LLM INITIALIZATION SUCCESSFUL")
-
-                    Log.d(TAG, ">>> PREPARING FIRST LLM CALL <<<")
-                    Log.d(TAG, "TARGET SYSTEM PROMPT: You are a text adventure game master using the text-adventure skill.")
-                    Log.d(TAG, "TARGET USER PROMPT (Background Setting): $settingContent")
-
-                    // Send the setting file content as the first user prompt
+                    // 3. 将背景内容发送给 AI，获取故事开篇
                     val response = liteRtLmService.chat(settingContent)
-                    Log.d(TAG, "LLM RESPONSE RECEIVED: ${response.take(100)}...")
+                    val intro = if (response.contains("\n")) response else generateStoryIntroFromSetting(settingContent)
 
-                    // Generate story intro based on the response
-                    val intro = if (response.contains("\n")) {
-                        response // Use the AI's response as intro
-                    } else {
-                        Log.w(TAG, "LLM response short/malformed, generating fallback intro")
-                        generateStoryIntroFromSetting(settingContent)
-                    }
-
-                    Log.d(TAG, "Saving initial conversation messages")
-                    // Save initial messages to conversation repository
+                    // 4. 将背景消息和 AI 开篇存入对话数据库
                     conversationRepository.addMessage(
                         ConversationEntity(
                             messageId = UUID.randomUUID().toString(),
                             text = settingContent,
-                            role = "user",
+                            role = "system", // 背景信息使用 system 角色
                             sessionId = storyId,
                             activeSessionId = storyId
                         )
@@ -322,32 +289,19 @@ class NewStoryViewModel @Inject constructor(
                         )
                     )
 
-                    Log.d(TAG, "Updating history entry with final intro")
-                    // Save to history (Update with real intro)
-                    val historyEntry = StoryHistoryEntity(
-                        id = storyId,
-                        settingId = selectedSettingFileUri?.toString() ?: "",
-                        settingTitle = selectedSettingFileName ?: "Unknown Setting",
+                    // 5. 更新历史记录中的最终开篇描述
+                    storyHistoryRepository.updateStory(initialHistoryEntry.copy(
                         storyBeginning = intro,
-                        messageCount = 2, // Initial setting + AI response
-                        createdAt = initialHistoryEntry.createdAt,
-                        lastActive = System.currentTimeMillis()
-                    )
-                    storyHistoryRepository.updateStory(historyEntry)
+                        messageCount = 2
+                    ))
                 }
-
-                Log.d(TAG, "New story started successfully in background")
-
             } catch (e: Exception) {
-                Log.e(TAG, "Error starting new story in background: ${e.message}", e)
-                // Since we've already navigated away, we can't easily show this error in the NewStory UI,
-                // but MainViewModel could observe an error state if we add it to the service.
+                Log.e(TAG, "Error starting new story: ${e.message}", e)
             }
         }
     }
 
     private fun generateStoryIntroFromSetting(settingContent: String): String {
-        // Generate a reasonable intro based on the setting content
         return "📖 *Story Initiated*\n\nBased on your selected setting, here begins your adventure.\n\n${settingContent.take(200)}...\n\nWhat would you like to do?"
     }
 
@@ -362,9 +316,7 @@ class NewStoryViewModel @Inject constructor(
         storySettingsDataSource.clearSelection()
     }
 
-    fun onCancel() {
-        // No longer resetting selection here
-    }
+    fun onCancel() {}
 
     fun onViewHistory() {
         viewModelScope.launch {
@@ -388,30 +340,24 @@ class NewStoryViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 加载现有的历史故事并跳转。
+     */
     fun onLoadStory(story: StoryHistoryEntity) {
-        Log.d(TAG, "onLoadStory called for ID: ${story.id}")
-
-        // Immediate navigation signal
+        // 立即发送导航信号
         _uiState.update { it.copy(storyStarted = true, newStoryId = story.id) }
 
-        // Use serviceScope to restore context in background
+        // 在后台恢复 AI 上下文环境
         liteRtLmService.getScope().launch {
             try {
-                Log.d(TAG, "Re-initializing engine and restoring context for story: ${story.id}")
-
-                // Get app settings for model path
                 val appSettings = appSettingsRepository.getSettings()
                 val modelPath = appSettings.selectedModelPath
 
-                if (modelPath == null || !File(modelPath).exists()) {
-                    Log.e(TAG, "Model path invalid: $modelPath")
-                    return@launch
-                }
+                if (modelPath == null || !File(modelPath).exists()) return@launch
 
-                // Extract skills from assets
                 val skillDir = extractSkillsFromAssets()
 
-                // 1. Initialize LiteRT-LM
+                // 1. 初始化引擎
                 val isInitSuccess = liteRtLmService.initialize(
                     engineConfig = liteRtLmService.getEngineConfig().copy(
                         modelPath = modelPath,
@@ -429,29 +375,24 @@ class NewStoryViewModel @Inject constructor(
                 )
 
                 if (isInitSuccess) {
-                    // 2. Load all past messages for this session
+                    // 2. 加载历史消息
                     val messages = withContext(Dispatchers.IO) {
                         conversationRepository.getMessagesBySessionSync(story.id)
                     }
 
-                    Log.d(TAG, "Restoring ${messages.size} messages to LLM context")
-
-                    // 3. Convert to service format and prime the engine
+                    // 3. 将历史同步到 AI 引擎
                     val serviceMessages = messages.map { entity ->
                         com.liteagent.textadventure.service.ContextCompressor.Message(
                             role = entity.role,
                             content = entity.text
                         )
                     }
-
                     liteRtLmService.restoreHistory(serviceMessages)
 
-                    // 4. Update lastActive to trigger observer in MainViewModel
+                    // 4. 更新最后活跃时间以触发主界面的观察者
                     withContext(Dispatchers.IO) {
                         storyHistoryRepository.updateStory(story.copy(lastActive = System.currentTimeMillis()))
                     }
-
-                    Log.d(TAG, "Context restoration complete for story: ${story.id}")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Context restoration failed: ${e.message}")
@@ -460,11 +401,13 @@ class NewStoryViewModel @Inject constructor(
     }
 }
 
-// UI State
+/**
+ * 新故事界面的 UI 状态。
+ */
 data class NewStoryUiState(
     val showHistory: Boolean = false,
-    val startingStory: Boolean = false,
-    val storyStarted: Boolean = false,
+    val startingStory: Boolean = false, // 是否正在启动故事
+    val storyStarted: Boolean = false, // 故事是否已启动（用于导航）
     val hasError: Boolean = false,
     val errorMessage: String? = null,
     val storyIntro: String? = null,

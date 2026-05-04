@@ -16,6 +16,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+/**
+ * 浅色主题颜色方案配置。
+ */
 private val LightColorScheme = lightColorScheme(
     primary = Purple80,
     onPrimary = Color.White,
@@ -42,6 +45,9 @@ private val LightColorScheme = lightColorScheme(
     outline = Color(0xFF79747E)
 )
 
+/**
+ * 深色主题颜色方案配置。
+ */
 private val DarkColorScheme = darkColorScheme(
     primary = DarkPurple80,
     onPrimary = DarkPurple85,
@@ -68,13 +74,17 @@ private val DarkColorScheme = darkColorScheme(
     outline = Color(0xFF98929A)
 )
 
+/**
+ * 应用程序主题入口。
+ * 支持动态色彩 (Material You) 和系统深色模式。
+ */
 @Composable
 fun TextAdventureTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = true, // Android 12+ 动态色彩支持
     content: @Composable () -> Unit
 ) {
+    // 决定使用哪种颜色方案
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
@@ -84,6 +94,7 @@ fun TextAdventureTheme(
         else -> LightColorScheme
     }
 
+    // 设置状态栏和导航栏颜色
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -95,6 +106,7 @@ fun TextAdventureTheme(
         }
     }
 
+    // 应用 MaterialTheme
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,

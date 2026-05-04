@@ -19,6 +19,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 
+import androidx.compose.ui.res.stringResource
+
+import com.liteagent.textadventure.R
+
+/**
+ * 应用程序设置界面。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -27,6 +34,7 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // 定义模型文件选择器
     val modelPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -36,12 +44,12 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 }
@@ -55,7 +63,43 @@ fun SettingsScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Model Selection Section
+            // --- 语言选择区块 ---
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = stringResource(R.string.language_settings_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    RadioButtonRow(
+                        selected = uiState.language == "zh",
+                        title = stringResource(R.string.language_zh),
+                        subtitle = "",
+                        onClick = { viewModel.onLanguageSelected("zh") }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    RadioButtonRow(
+                        selected = uiState.language == "en",
+                        title = stringResource(R.string.language_en),
+                        subtitle = "",
+                        onClick = { viewModel.onLanguageSelected("en") }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- 模型与后端选择区块 ---
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -64,47 +108,41 @@ fun SettingsScreen(
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Model Backend",
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
+                    Text(
+                        text = stringResource(R.string.model_backend_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // HuggingFace Option
+                    // HuggingFace 后端
                     RadioButtonRow(
                         selected = uiState.selectedBackend == "huggingface",
-                        title = "HuggingFace",
+                        title = stringResource(R.string.model_backend_huggingface),
                         subtitle = "Open community models",
                         onClick = { viewModel.onBackendSelected("huggingface") }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // ModelScope Option
+                    // ModelScope 后端
                     RadioButtonRow(
                         selected = uiState.selectedBackend == "modelscope",
-                        title = "ModelScope",
+                        title = stringResource(R.string.model_backend_modelscope),
                         subtitle = "Alibaba's model platform",
                         onClick = { viewModel.onBackendSelected("modelscope") }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Model Info
+                    // 当前已加载的模型信息
                     Text(
-                        text = "Current Model: ",
+                        text = stringResource(R.string.current_model),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = uiState.selectedModelName ?: "None selected",
+                        text = uiState.selectedModelName ?: stringResource(R.string.none_selected),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (uiState.selectedModelName == null)
                             MaterialTheme.colorScheme.error
@@ -114,12 +152,11 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Buttons Row
+                    // 模型操作按钮组：下载、选择本地文件、打开网页浏览器
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Download Button
                         Button(
                             onClick = { viewModel.downloadModel() },
                             modifier = Modifier.weight(1f).height(48.dp),
@@ -127,27 +164,23 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
-                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Download", style = MaterialTheme.typography.labelMedium)
+                            Text(stringResource(R.string.download_models), style = MaterialTheme.typography.labelMedium)
                         }
 
-                        // Select Button
                         Button(
                             onClick = { modelPickerLauncher.launch(arrayOf("*/*")) },
                             modifier = Modifier.weight(1f).height(48.dp),
                             shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.secondary
-                            ),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                             contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
-                            Icon(Icons.Default.FileOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.FileOpen, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Select", style = MaterialTheme.typography.labelMedium)
+                            Text(stringResource(R.string.select_model), style = MaterialTheme.typography.labelMedium)
                         }
 
-                        // Browser Button
                         Button(
                             onClick = { viewModel.onOpenFolderClick() },
                             modifier = Modifier.weight(1f).height(48.dp),
@@ -158,9 +191,9 @@ fun SettingsScreen(
                             ),
                             contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
-                            Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Public, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Web", style = MaterialTheme.typography.labelMedium)
+                            Text(stringResource(R.string.web_browser), style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -168,7 +201,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // LLM Configuration Section
+            // --- LLM 参数配置区块 ---
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -178,23 +211,17 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "LLM Configuration",
+                        text = stringResource(R.string.llm_config_title),
                         style = MaterialTheme.typography.titleMedium
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Temperature Slider
+                    // Temperature (生成温度) 滑动条
                     Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Temperature")
-                            Text(
-                                text = "%.2f".format(uiState.temperature),
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(stringResource(R.string.temperature))
+                            Text(text = "%.2f".format(uiState.temperature), style = MaterialTheme.typography.bodySmall)
                         }
                         Slider(
                             value = uiState.temperature,
@@ -207,17 +234,11 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Top-P Slider
+                    // Top-P 采样滑动条
                     Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Top-P")
-                            Text(
-                                text = "%.2f".format(uiState.topP),
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Text(text = "%.2f".format(uiState.topP), style = MaterialTheme.typography.bodySmall)
                         }
                         Slider(
                             value = uiState.topP,
@@ -230,17 +251,11 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Top-K Slider
+                    // Top-K 采样滑动条
                     Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Top-K")
-                            Text(
-                                text = "${uiState.topK}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            Text(text = "${uiState.topK}", style = MaterialTheme.typography.bodySmall)
                         }
                         Slider(
                             value = uiState.topK.toFloat(),
@@ -253,24 +268,22 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // 硬件加速配置 (CPU vs GPU)
                     Text(
-                        text = "Hardware Acceleration",
+                        text = stringResource(R.string.hardware_acceleration),
                         style = MaterialTheme.typography.titleMedium
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
                             selected = uiState.accelerationMode == "CPU",
                             onClick = { viewModel.onAccelerationModeChanged("CPU") },
                             label = { Text("CPU") },
                             modifier = Modifier.weight(1f),
                             leadingIcon = if (uiState.accelerationMode == "CPU") {
-                                { Icon(Icons.Default.Check, contentDescription = null) }
+                                { Icon(Icons.Default.Check, null) }
                             } else null
                         )
                         FilterChip(
@@ -279,54 +292,45 @@ fun SettingsScreen(
                             label = { Text("GPU") },
                             modifier = Modifier.weight(1f),
                             leadingIcon = if (uiState.accelerationMode == "GPU") {
-                                { Icon(Icons.Default.Check, contentDescription = null) }
+                                { Icon(Icons.Default.Check, null) }
                             } else null
                         )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Max Tokens Input
+                    // 最大生成 Token 数输入
                     OutlinedTextField(
                         value = uiState.maxTokens.toString(),
                         onValueChange = {
                             try {
                                 val value = it.toInt()
                                 viewModel.onMaxTokensChanged(value)
-                            } catch (e: NumberFormatException) {
-                                // Invalid number
-                            }
+                            } catch (e: NumberFormatException) {}
                         },
-                        label = { Text("Max Tokens") },
+                        label = { Text(stringResource(R.string.max_tokens)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = { /* Dismiss keyboard if needed */ }
-                        )
+                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // System Prompt
+                    // 系统提示词编辑器
                     OutlinedTextField(
                         value = uiState.systemPrompt,
                         onValueChange = { viewModel.onSystemPromptChanged(it) },
-                        label = { Text("System Prompt") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 120.dp),
+                        label = { Text(stringResource(R.string.system_prompt)) },
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp),
                         maxLines = 6,
                         minLines = 4
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Action Buttons
+            // 保存与取消按钮
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -336,28 +340,29 @@ fun SettingsScreen(
                         viewModel.saveSettings()
                         onNavigateBack()
                     },
-                    modifier = Modifier
-                        .weight(0.6f)
-                        .height(56.dp),
+                    modifier = Modifier.weight(0.6f).height(56.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Save Settings")
+                    Text(stringResource(R.string.save_settings))
                 }
 
                 OutlinedButton(
                     onClick = { onNavigateBack() },
-                    modifier = Modifier
-                        .weight(0.4f)
-                        .height(56.dp),
+                    modifier = Modifier.weight(0.4f).height(56.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel_settings))
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
+/**
+ * 带有单选按钮的行组件。
+ */
 @Composable
 fun RadioButtonRow(
     selected: Boolean,
@@ -373,23 +378,20 @@ fun RadioButtonRow(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RadioButton(
-                selected = selected,
-                onClick = onClick
-            )
+            RadioButton(selected = selected, onClick = onClick)
             Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(text = title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

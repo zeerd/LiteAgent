@@ -19,6 +19,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import com.liteagent.textadventure.data.db.StoryHistoryEntity
 
+/**
+ * 独立的历史记录界面（如果通过路由跳转）。
+ * 注意：在 NewStoryScreen.kt 中也有一个同名的内部实现。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
@@ -49,8 +53,8 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            // 如果历史为空，显示空状态卡片
             if (uiState.showHistory && historyEntries.isEmpty()) {
-                // Empty state
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -89,7 +93,7 @@ fun HistoryScreen(
                     }
                 }
             } else {
-                // Story list
+                // 显示历史记录列表
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -104,12 +108,15 @@ fun HistoryScreen(
     }
 }
 
+/**
+ * 历史记录条目卡片。
+ */
 @Composable
 fun StoryHistoryCard(entry: StoryHistoryEntity) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { },
+            .clickable { /* 点击恢复逻辑 */ },
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -144,9 +151,12 @@ fun StoryHistoryCard(entry: StoryHistoryEntity) {
     }
 }
 
+/**
+ * 格式化最后活跃时间。
+ */
 @Composable
 fun formatLastActive(timestamp: Long): String {
-    // Simplified - in production, use proper time formatting
-    val hours = System.currentTimeMillis() - timestamp
-    return "${hours / 3600000}h ago"
+    val duration = System.currentTimeMillis() - timestamp
+    val hours = duration / 3600000
+    return if (hours < 1) "Just now" else "${hours}h ago"
 }

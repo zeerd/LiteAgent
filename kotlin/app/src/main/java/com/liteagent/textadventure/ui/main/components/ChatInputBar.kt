@@ -12,20 +12,25 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 
+/**
+ * 聊天输入栏组件。
+ * 包含一个多行文本输入框和一个发送按钮。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatInputBar(
-    onSend: (String) -> Unit,
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String = "Message...",
-    enabled: Boolean = true,
+    onSend: (String) -> Unit, // 点击发送时的回调
+    value: String, // 当前输入框的值
+    onValueChange: (String) -> Unit, // 值改变时的回调
+    placeholder: String = "Message...", // 占位符文本
+    enabled: Boolean = true, // 是否可用
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    
+
     Box(modifier = modifier) {
+        // 文本输入框
         OutlinedTextField(
             value = value,
             onValueChange = { onValueChange(it) },
@@ -42,7 +47,8 @@ fun ChatInputBar(
                 focusedBorderColor = MaterialTheme.colorScheme.primary
             )
         )
-        
+
+        // 发送按钮容器
         Box(
             modifier = Modifier
                 .size(56.dp)

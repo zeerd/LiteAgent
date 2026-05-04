@@ -8,10 +8,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+/**
+ * 单条聊天消息组件。
+ * 根据消息来源（用户或 AI）显示不同的背景颜色和对齐方式。
+ */
 @Composable
 fun ChatMessageItem(
-    text: String,
-    isUser: Boolean
+    text: String, // 消息内容
+    isUser: Boolean // 是否为用户发送
 ) {
     Card(
         modifier = Modifier
@@ -19,6 +23,7 @@ fun ChatMessageItem(
             .padding(vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
+            // 用户消息使用主色调容器，AI 消息使用次要色调容器
             containerColor = if (isUser)
                 MaterialTheme.colorScheme.primaryContainer
             else

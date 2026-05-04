@@ -2,6 +2,7 @@ package com.liteagent.textadventure.service
 
 import android.content.Context
 import android.util.Log
+import com.liteagent.textadventure.R
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
@@ -24,6 +25,9 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * LiteRT-LM 服务，负责管理 AI 引擎的生命周期、对话和上下文压缩。
+ */
 @Singleton
 class LiteRtLmService @Inject constructor(
     private val context: Context
@@ -39,15 +43,15 @@ class LiteRtLmService @Inject constructor(
         private const val DEFAULT_TEMPERATURE = 0.7f
     }
 
-    // Core engine components
+    // 核心引擎组件
     private var engine: Engine? = null
     private var conversation: Conversation? = null
     private var currentConfig: EngineConfig? = null
 
-    // Compression module
+    // 压缩模块
     private var compressor: ContextCompressor? = null
 
-    // State flows
+    // 状态流，供 UI 观察
     private val _isInitialized = MutableStateFlow(false)
     val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
 
@@ -63,12 +67,12 @@ class LiteRtLmService @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    // History tracking for compression
+    // 历史消息追踪，用于压缩逻辑
     private val _historyMessages = mutableListOf<ContextCompressor.Message>()
     val historyMessages: List<ContextCompressor.Message> = _historyMessages.toList()
 
-    // Configuration
-    private var _systemPrompt = "You are a text adventure game master."
+    // 配置参数
+    private var _systemPrompt = ""
     private var _maxTokens: Int = DEFAULT_MAX_TOKENS
     private var _compressionThreshold: Float = DEFAULT_COMPRESSION_THRESHOLD
     private var _temperature: Float = DEFAULT_TEMPERATURE
@@ -77,7 +81,7 @@ class LiteRtLmService @Inject constructor(
 
     private val initMutex = Mutex()
 
-    // Properties
+    // 属性访问器
     var systemPrompt: String
         get() = _systemPrompt
         set(value) {
@@ -100,6 +104,7 @@ class LiteRtLmService @Inject constructor(
     init {
         Log.d(TAG, "LiteRtLmService initialized")
         try {
+            // 加载本地库
             System.loadLibrary("litertlm_jni")
             Log.d(TAG, "Native library litertlm_jni loaded successfully in service")
         } catch (e: UnsatisfiedLinkError) {
@@ -108,12 +113,12 @@ class LiteRtLmService @Inject constructor(
     }
 
     /**
-     * Provide a scope for background tasks that outlive UI components
+     * 提供一个比 UI 组件存活更久的协程作用域。
      */
     fun getScope(): CoroutineScope = serviceScope
 
     /**
-     * 初始化 Engine、技能和压缩器 - 完全对应 Python 版本
+     * 初始化 Engine、技能和压缩器。
      */
     suspend fun initialize(
         engineConfig: EngineConfig,
@@ -140,6 +145,9 @@ class LiteRtLmService @Inject constructor(
         }
     }
 
+    /**
+     * 执行实际的初始化流程。
+     */
     private suspend fun performInitialize(
         engineConfig: EngineConfig,
         systemPrompt: String,
@@ -151,15 +159,9 @@ class LiteRtLmService @Inject constructor(
         return withContext(Dispatchers.IO) {
             Log.d(TAG, "===========================================")
             Log.d(TAG, "Performing LiteRtLmService initialization...")
-            Log.d(TAG, "  - Model path: ${engineConfig.modelPath}")
-            Log.d(TAG, "  - Skill dir: $skillDir")
-            Log.d(TAG, "  - Backend: ${engineConfig.backend}")
-            Log.d(TAG, "  - Temperature: $temperature")
-            Log.d(TAG, "  - Compression threshold: $compressionThreshold")
-            Log.d(TAG, "  - Allowed skills: ${allowedSkills?.joinToString(", ") ?: "all"}")
 
             try {
-                // Verify model file exists
+                // 验证模型文件是否存在
                 val modelFile = File(engineConfig.modelPath)
                 if (!modelFile.exists()) {
                     Log.e(TAG, "❌ Model file not found: ${engineConfig.modelPath}")
@@ -168,7 +170,7 @@ class LiteRtLmService @Inject constructor(
                 }
 
                 Log.d(TAG, "Step 1: Closing existing components...")
-                // 关闭现有引擎
+                // 关闭旧组件
                 try {
                     conversation?.close()
                     engine?.close()
@@ -183,7 +185,7 @@ class LiteRtLmService @Inject constructor(
 
                 _maxTokens = engineConfig.maxNumTokens ?: DEFAULT_MAX_TOKENS
                 _systemPrompt = systemPrompt.ifEmpty {
-                    "You are a text adventure game master."
+                    context.getString(R.string.default_system_prompt)
                 }
                 _compressionThreshold = compressionThreshold
                 _temperature = temperature
@@ -191,22 +193,21 @@ class LiteRtLmService @Inject constructor(
                 _allowedSkills = allowedSkills
 
                 Log.d(TAG, "Step 2: Creating and initializing Engine...")
-                // 创建 Engine
+                // 创建并初始化引擎
                 val newEngine = Engine(engineConfig)
                 newEngine.initialize()
 
                 if (!newEngine.isInitialized()) {
-                    Log.e(TAG, "❌ Engine initialization failed: isInitialized() is false")
-                    _error.value = "Engine failed to initialize. Check if model file is valid."
+                    Log.e(TAG, "❌ Engine initialization failed")
+                    _error.value = "Engine failed to initialize."
                     return@withContext false
                 }
 
                 engine = newEngine
                 currentConfig = engineConfig
-                Log.d(TAG, "   - Engine.isInitialized(): ${engine?.isInitialized()}")
 
                 Log.d(TAG, "Step 3: Loading skills from $skillDir...")
-                // 加载技能管理器 - 与 Python 版本完全对应
+                // 初始化技能管理器
                 val manager = try {
                     SkillManager(skillDir, allowedSkills)
                 } catch (e: Exception) {
@@ -214,11 +215,9 @@ class LiteRtLmService @Inject constructor(
                     SkillManager("", emptyList())
                 }
                 _skillManager.value = manager
-                val skillCount = manager.getAllSkills().size
-                Log.d(TAG, "✅ Loaded $skillCount skills")
 
                 Log.d(TAG, "Step 4: Initializing ContextCompressor...")
-                // 初始化压缩器 - 与 Python 版本完全对应
+                // 初始化上下文压缩器
                 compressor = ContextCompressor(
                     modelPath = engineConfig.modelPath,
                     backend = engineConfig.backend,
@@ -227,34 +226,32 @@ class LiteRtLmService @Inject constructor(
                 )
 
                 Log.d(TAG, "Step 5: Building system prompt...")
-                // 构建系统提示词 - 与 Python 版本对应
+                // 注入技能说明到系统提示词
                 val promptInjector = PromptInjector()
                 val skills = manager.getAllSkills()
                 val instrumentedPrompt = if (skills.isNotEmpty()) {
-                    promptInjector.buildInstrumentedPrompt(skills)
+                    promptInjector.buildInstrumentedPrompt(context, skills)
                 } else {
-                    "You are a helpful AI assistant."
+                    _systemPrompt
                 }
-                _systemPrompt = "$instrumentedPrompt\n使用中文与用户交流。"
+
+                val languageInstruction = context.getString(R.string.language_instruction_prompt)
+                _systemPrompt = "$instrumentedPrompt\n$languageInstruction"
 
                 Log.d(TAG, "Step 6: Creating conversation...")
-                // 创建对话配置 - 使用 Python 版本对应的 API
+                // 创建对话会话
                 val config = ConversationConfig(
                     systemInstruction = Contents.of(_systemPrompt)
                 )
 
                 conversation = engine?.createConversation(config)
-
                 _historyMessages.clear()
 
                 if (engine != null && conversation != null) {
                     _isInitialized.value = true
-                    Log.d(TAG, "Engine initialized successfully")
                     Log.d(TAG, "✅ LiteRtLmService initialization complete")
-                    Log.d(TAG, "===========================================")
                     return@withContext true
                 } else {
-                    Log.e(TAG, "Failed to create engine or conversation")
                     _error.value = "Failed to initialize engine"
                     return@withContext false
                 }
@@ -267,28 +264,28 @@ class LiteRtLmService @Inject constructor(
     }
 
     /**
-     * 获取可用技能列表
+     * 获取可用技能名称列表。
      */
     fun getAvailableSkills(): List<String> {
         return _skillManager.value?.getSkillsNames() ?: emptyList()
     }
 
     /**
-     * 获取所有技能
+     * 获取所有技能对象。
      */
     fun getAllSkills(): List<Skill> {
         return _skillManager.value?.getAllSkills() ?: emptyList()
     }
 
     /**
-     * 获取技能信息
+     * 获取特定技能的信息。
      */
     fun getSkillInfo(skillName: String): Skill? {
         return _skillManager.value?.getSkill(skillName)
     }
 
     /**
-     * 加载特定技能 - 对应 Python 的 _handle_load_skill
+     * 加载并格式化特定技能。
      */
     fun loadSkill(skillName: String): String {
         val skill = _skillManager.value?.getSkill(skillName)
@@ -305,16 +302,11 @@ class LiteRtLmService @Inject constructor(
             instructions = skill.instructions
         )
 
-        Log.d(TAG, "✅ load_skill processed successfully: $skillName")
-        Log.d(TAG, "   - Skill name: ${skill.name}")
-        Log.d(TAG, "   - Instruction length: ${skill.instructions.length} chars")
-
         return result
     }
 
     /**
-     * 检查是否需要压缩上下文
-     * 完全对应 Python 的 _check_compression_trigger
+     * 检查是否需要触发上下文压缩。
      */
     private fun shouldCompress(lastResponse: String = ""): Pair<Boolean, Int> {
         if (_historyMessages.isEmpty() || _maxTokens <= 0) {
@@ -325,65 +317,41 @@ class LiteRtLmService @Inject constructor(
         val threshold = (_maxTokens * _compressionThreshold).toInt()
         val actualLength = totalContentLength / 2
 
-        // Condition 1: Context/2 exceeds 75% of threshold
+        // 条件 1: 上下文长度超过限制
         val lengthTrigger = actualLength > threshold
 
-        // Condition 2: LLM response is shorter than 10 characters
+        // 条件 2: LLM 返回的响应过短（可能意味着上下文已满）
         val shortResponseTrigger = lastResponse.isNotEmpty() && lastResponse.length < 10
 
         val shouldCompress = lengthTrigger || shortResponseTrigger
-
-        if (shouldCompress) {
-            Log.d(TAG, "✅ Trigger compression: lengthTrigger=$lengthTrigger (actual=$actualLength, thresh=$threshold), shortTrigger=$shortResponseTrigger (len=${lastResponse.length})")
-            Log.d(TAG, "🔧 Starting context compression...")
-        } else {
-            Log.d(TAG, "📊 No compression: actual=$actualLength <= thresh=$threshold AND response len=${lastResponse.length} >= 10")
-        }
 
         return shouldCompress to totalContentLength
     }
 
     /**
-     * 构建压缩后的消息列表
-     * 完全对应 Python 的 _compress_and_retry
+     * 构建压缩后的消息序列。
      */
     private fun buildCompressedMessages(
         compressedHistory: String
     ): List<Pair<String, String>> {
-        Log.d(TAG, "📜 Compressed history length: ${compressedHistory.length} chars")
-
         val messages = mutableListOf<Pair<String, String>>()
-
-        // System prompt
         messages.add("system" to _systemPrompt)
-
-        // Compressed history as user message
         messages.add("user" to compressedHistory)
-
-        // Assistant response
         messages.add("assistant" to "Acknowledged.")
-
         return messages
     }
 
     /**
-     * 发送消息并与 Agent 对话
-     * 完全对应 Python 版本的 chat() 方法
+     * 发送用户消息并获取 AI 响应。
      */
     suspend fun chat(userMessage: String): String {
-        Log.d(TAG, "===========================================")
-        Log.d(TAG, "LLM CHAT INVOKED")
-        Log.d(TAG, "SYSTEM PROMPT: $_systemPrompt")
-        Log.d(TAG, "USER MESSAGE: $userMessage")
-        Log.d(TAG, "===========================================")
-
         _isProcessing.value = true
         _currentMessage.value = ""
 
-        // Add user message to history
+        // 将用户消息存入历史记录
         _historyMessages.add(ContextCompressor.Message("user", userMessage))
 
-        // First check: did the previous context already exceed the limit?
+        // 发送前检查是否需要压缩
         val (initialNeedCompress, _) = shouldCompress()
 
         return try {
@@ -392,8 +360,7 @@ class LiteRtLmService @Inject constructor(
             if (initialNeedCompress) {
                 performCompressionAndChat(userMessage, responseBuilder)
             } else {
-                Log.d(TAG, "Sending message to conversation...")
-                // Normal chat flow without compression
+                // 普通对话流
                 conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
                     _currentMessage.value += partialResponse.toString()
                     responseBuilder.append(partialResponse.toString())
@@ -401,12 +368,11 @@ class LiteRtLmService @Inject constructor(
             }
 
             var responseText = responseBuilder.toString()
-            Log.d(TAG, "LLM Response completed: ${responseText.take(50)}...")
 
-            // Add assistant response to history
+            // 将 AI 响应存入历史记录
             _historyMessages.add(ContextCompressor.Message("assistant", responseText))
 
-            // Post-chat check: was the response too short? Or did this message push context over?
+            // 发送后检查是否因为该次响应而触发压缩
             val (postNeedCompress, _) = shouldCompress(responseText)
 
             if (postNeedCompress && !initialNeedCompress) {
@@ -415,7 +381,7 @@ class LiteRtLmService @Inject constructor(
                 performCompressionAndChat(userMessage, responseBuilder)
                 responseText = responseBuilder.toString()
 
-                // Update the last message in history with the new full response
+                // 更新历史记录中的最后一条 AI 消息
                 if (_historyMessages.isNotEmpty() && _historyMessages.last().role == "assistant") {
                     _historyMessages.removeAt(_historyMessages.size - 1)
                 }
@@ -433,19 +399,16 @@ class LiteRtLmService @Inject constructor(
         }
     }
 
+    /**
+     * 执行压缩流程并重新发送对话。
+     */
     private suspend fun performCompressionAndChat(userMessage: String, responseBuilder: StringBuilder) {
-        val totalLength = _historyMessages.sumOf { it.content.length }
-        Log.d(TAG, "Executing compression (total history length: $totalLength)")
-
         val compressedHistory = compressor?.compressHistory(_historyMessages)
 
         if (compressedHistory != null && compressedHistory.isNotEmpty()) {
-            Log.d(TAG, "✅ Compression successful: ${compressedHistory.length} chars")
-
-            // Reset history
+            // 压缩成功，重置历史并重建会话
             _historyMessages.clear()
 
-            // Rebuild conversation
             conversation?.close()
             val conversationConfig = ConversationConfig(
                 systemInstruction = Contents.of(_systemPrompt),
@@ -457,13 +420,13 @@ class LiteRtLmService @Inject constructor(
             )
             conversation = engine?.createConversation(conversationConfig)
 
-            // Collect final response
+            // 重新发送当前消息
             conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
                 _currentMessage.value += partialResponse.toString()
                 responseBuilder.append(partialResponse.toString())
             }
         } else {
-            Log.w(TAG, "⚠️ Compression failed, continuing with original conversation")
+            // 压缩失败，尝试继续原始对话
             conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
                 _currentMessage.value += partialResponse.toString()
                 responseBuilder.append(partialResponse.toString())
@@ -472,14 +435,13 @@ class LiteRtLmService @Inject constructor(
     }
 
     /**
-     * Restore conversation history from a list of messages
+     * 从消息列表恢复对话历史。
      */
     fun restoreHistory(messages: List<ContextCompressor.Message>) {
         try {
             _historyMessages.clear()
             _historyMessages.addAll(messages)
 
-            // Re-initialize conversation with full context if possible
             val conversationConfig = ConversationConfig(
                 systemInstruction = Contents.of(_systemPrompt),
                 initialMessages = messages.map { msg ->
@@ -498,7 +460,7 @@ class LiteRtLmService @Inject constructor(
     }
 
     /**
-     * 重置会话
+     * 重置对话，清空所有历史上下文。
      */
     fun resetConversation() {
         try {
@@ -518,10 +480,8 @@ class LiteRtLmService @Inject constructor(
         }
     }
 
-
-
     /**
-     * 释放资源
+     * 释放所有引擎资源。
      */
     fun dispose() {
         try {
@@ -539,7 +499,7 @@ class LiteRtLmService @Inject constructor(
     }
 
     /**
-     * 获取模型文件夹
+     * 获取或创建模型存储目录。
      */
     fun getOrCreateModelFolder(): File {
         val storageDir = File(context.getExternalFilesDir(null), MODEL_FOLDER_NAME)
@@ -550,27 +510,26 @@ class LiteRtLmService @Inject constructor(
     }
 
     /**
-     * 获取模型路径
+     * 获取默认模型路径。
      */
     fun getOrCreateModelPath(): String {
         val modelFolder = getOrCreateModelFolder()
-        val modelPath = File(modelFolder, DEFAULT_MODEL_NAME).absolutePath
-        return modelPath
+        return File(modelFolder, DEFAULT_MODEL_NAME).absolutePath
     }
 
     /**
-     * 获取 Engine 配置
+     * 获取当前引擎的默认配置。
      */
     fun getEngineConfig(): EngineConfig {
         return EngineConfig(
             modelPath = getOrCreateModelPath(),
             backend = Backend.CPU(),
-            maxNumTokens = 32768 // Default to 32k for text adventure
+            maxNumTokens = 32768
         )
     }
 
     /**
-     * 获取当前配置信息
+     * 获取当前服务的配置详情映射。
      */
     fun getConfiguration(): Map<String, Any> {
         return mapOf(

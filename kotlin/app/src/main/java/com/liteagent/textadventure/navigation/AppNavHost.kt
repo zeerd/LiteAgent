@@ -10,6 +10,10 @@ import com.liteagent.textadventure.ui.settings.SettingsScreen
 import com.liteagent.textadventure.ui.newstory.HistoryScreen
 import com.liteagent.textadventure.ui.newstory.NewStoryScreen
 
+/**
+ * 应用程序的全局导航宿主。
+ * 定义了所有屏幕之间的跳转逻辑和路由。
+ */
 @Composable
 fun AppNavHost(
     navController: NavHostController,
@@ -17,9 +21,10 @@ fun AppNavHost(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Destinations.MAIN_ROUTE,
+        startDestination = Destinations.MAIN_ROUTE, // 默认进入主聊天界面
         modifier = modifier
     ) {
+        // 主聊天界面
         composable(Destinations.MAIN_ROUTE) {
             MainScreen(
                 onNavigateToSettings = {
@@ -30,7 +35,8 @@ fun AppNavHost(
                 }
             )
         }
-        
+
+        // 设置界面
         composable(Destinations.SETTINGS_ROUTE) {
             SettingsScreen(
                 onNavigateBack = {
@@ -38,7 +44,8 @@ fun AppNavHost(
                 }
             )
         }
-        
+
+        // 创建新故事界面
         composable(Destinations.NEW_STORY_ROUTE) {
             NewStoryScreen(
                 onNavigateBack = {
@@ -46,7 +53,8 @@ fun AppNavHost(
                 }
             )
         }
-        
+
+        // 历史记录详情界面（如果需要独立跳转）
         composable("${Destinations.HISTORY_ROUTE}/{$Destinations.ARG_STORY_ID}") { backStackEntry ->
             val storyId = backStackEntry.arguments?.getString(Destinations.ARG_STORY_ID) ?: ""
             HistoryScreen(
