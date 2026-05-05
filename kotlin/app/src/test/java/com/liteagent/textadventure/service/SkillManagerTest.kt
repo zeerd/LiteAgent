@@ -1,4 +1,4 @@
-package com.liteagent.textadventure.service
+package com.zeerd.textadventure.service
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.After
@@ -101,15 +101,19 @@ This is the instruction text.
  */
 class PromptInjectorTest {
 
+    private val context = io.mockk.mockk<android.content.Context>(relaxed = true)
+
     @Test
     fun testBuildInstrumentedPromptWithSkills() {
+        io.mockk.every { context.getString(any()) } returns "Respond in English."
+
         val skills = listOf(
             Skill(name = "test-skill", description = "测试技能"),
             Skill(name = "another-skill", description = "另一个技能")
         )
 
         val injector = PromptInjector()
-        val prompt = injector.buildInstrumentedPrompt(skills)
+        val prompt = injector.buildInstrumentedPrompt(context, skills)
 
         assertThat(prompt).contains("test-skill")
         assertThat(prompt).contains("another-skill")
@@ -118,11 +122,13 @@ class PromptInjectorTest {
 
     @Test
     fun testBuildInstrumentedPromptWithNoSkills() {
+        io.mockk.every { context.getString(any()) } returns "Respond in English."
         val skills = emptyList<Skill>()
 
         val injector = PromptInjector()
-        val prompt = injector.buildInstrumentedPrompt(skills)
+        val prompt = injector.buildInstrumentedPrompt(context, skills)
 
-        assertThat(prompt).isEqualTo("You are a helpful AI assistant.")
+        assertThat(prompt).contains("You are an AI assistant")
+        assertThat(prompt).contains("(No skills available)")
     }
 }

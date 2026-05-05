@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.liteagent.textadventure"
+    namespace = "com.zeerd.textadventure"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.liteagent.textadventure"
+        applicationId = "com.zeerd.textadventure"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

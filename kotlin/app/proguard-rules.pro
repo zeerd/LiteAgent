@@ -10,7 +10,7 @@
 -keepclassmembers @dagger.hilt.android.components.** { *; }
 
 # Keep data classes
--keep class com.liteagent.textadventure.model.** { *; }
+-keep class com.zeerd.textadventure.model.** { *; }
 
 # Keep Room
 -keep class **_**Impl { *; }

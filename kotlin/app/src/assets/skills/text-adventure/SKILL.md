@@ -1,8 +1,6 @@
 ---
 name: text-adventure
-description: 文本冒险游戏主持人
-version: "1.0.0"
-tags: [game, story, interactive]
+description: 文本冒险游戏主持人，以用户提供的信息为基础，创造引人入胜的互动文字冒险游戏体验。
 ---
 
 # 文本冒险游戏 - SKILL
