@@ -354,16 +354,70 @@ class MainViewModel @Inject constructor(
 }
 
 /**
- * 主界面的 UI 状态数据类。
+ * 主界面 (MainScreen) 的 UI 状态数据类。
+ * 该状态通过 _uiState 流驱动 MainScreen 的组合和渲染。
+ * 任何字段的变化都会触发 UI 重组，反映最新的交互状态。
  */
 data class MainUiState(
-    val messages: List<ChatMessage> = emptyList(), // 对话历史列表
-    val userInput: String? = null, // 当前用户输入
-    val showWelcome: Boolean = true, // 是否显示欢迎界面
-    val isModelInitialized: Boolean = false, // 模型是否已就绪
-    val isProcessing: Boolean = false, // 模型是否正在生成中
-    val statusMessage: String? = null, // 状态消息
-    val error: String? = null, // 错误信息
-    val currentMessage: String? = null, // 正在流式生成的当前消息内容
-    val selectedQuickAction: QuickAction? = null // 当前选中的快捷动作
+    /**
+     * 对话历史消息列表，传递给 ChatMessageItem 组件列表进行渲染。
+     * - 为空时显示欢迎界面 (showWelcome=true)
+     * - 非空时显示聊天消息历史
+     */
+    val messages: List<ChatMessage> = emptyList(),
+
+    /**
+     * 当前用户在输入框中输入的文本内容，绑定到 ChatInputBar 组件。
+     * - 非空时，发送按钮被启用
+     * - 清空表示用户已完成输入，等待 AI 响应
+     */
+    val userInput: String? = null,
+
+    /**
+     * 控制是否显示空聊天状态的欢迎界面。
+     * - true: 显示中央欢迎信息和图标 (showWelcome=true)
+     * - false: 显示聊天历史记录和输入栏
+     */
+    val showWelcome: Boolean = true,
+
+    /**
+     * 指示 AI 模型是否已完成初始化，用于决定是否启用聊天功能。
+     * - false: 显示"模型加载中"状态，阻止用户发送消息
+     * - true: 模型已就绪，用户可以开始对话
+     */
+    val isModelInitialized: Boolean = false,
+
+    /**
+     * 指示 AI 引擎是否正在流式生成响应。
+     * - true: 显示加载指示器，禁用输入栏以防止用户发送新消息
+     * - false: AI 就绪，可以接受用户输入
+     */
+    val isProcessing: Boolean = false,
+
+    /**
+     * 显示应用级别的状态消息（如"正在连接服务器"等），通常在屏幕顶部的 Snackbar 或 Text 组件中显示。
+     * - 提供非阻塞式的状态反馈，不干扰用户交互
+     */
+    val statusMessage: String? = null,
+
+    /**
+     * 显示错误信息（如 AI 响应失败、模型加载错误等）。
+     * - 非空时，通常通过 Snackbar、Toast 或错误提示卡片显示给用户
+     * - 用于告知用户发生了什么错误以及可能的解决方法
+     */
+    val error: String? = null,
+
+    /**
+     * AI 正在流式生成的当前消息内容。
+     * - 非 null 时，显示 AI 正在输入的状态，文本逐字追加显示
+     * - 用于提供流畅的 AI 响应体验，而不是等待完整响应后再显示
+     */
+    val currentMessage: String? = null,
+
+    /**
+     * 当前选中的快捷动作，用于显示用户点击的快速回复按钮。
+     * - 非 null 时，表示用户已选择某个快捷操作（如"重新开始"、"继续对话"等）
+     * - UI 会高亮显示该按钮并准备执行相应操作
+     */
+    val selectedQuickAction: QuickAction? = null
 )

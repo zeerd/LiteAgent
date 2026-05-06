@@ -373,26 +373,123 @@ class SettingsViewModel @Inject constructor(
 }
 
 /**
- * 设置界面的 UI 状态。
+ * 设置界面 (SettingsScreen) 的 UI 状态。
+ * 该状态通过 _uiState 流驱动 SettingsScreen 的组合，控制配置项的显示和用户交互状态。
  */
 data class SettingsUiState(
+    /**
+     * 应用程序语言设置（"zh"或"en"）。
+     * - UI 会更新为选中语言，影响所有界面文本显示
+     * - 保存后触发应用范围的语言切换
+     */
     val language: String = "zh",
+
+    /**
+     * AI 推理后端选择（"huggingface" 或 "modelscope"）。
+     * - 控制模型下载和初始化时使用的模型仓库
+     * - UI 下拉选择框的当前选中值
+     */
     val selectedBackend: String = "huggingface",
+
+    /**
+     * 后端硬件加速模式（"CPU" 或 "GPU"）。
+     * - 控制 AI 引擎运行时使用的硬件后端
+     * - UI 会显示当前选择的加速模式，影响推理性能
+     */
     val accelerationMode: String = "CPU",
+
+    /**
+     * 当前选中的模型文件路径。
+     * - null: 尚未选择或加载模型
+     * - 非 null: 显示已选择模型的文件路径，可用于继续操作
+     */
     val selectedModelPath: String? = null,
+
+    /**
+     * 当前选中的模型文件名。
+     * - null: 尚未选择模型
+     * - 非 null: 向用户显示已选择模型的文件名，提供视觉反馈
+     */
     val selectedModelName: String? = null,
+
+    /**
+     * AI 模型的温度参数，控制生成文本的创意性和多样性。
+     * UI 滑动条显示当前值，范围通常为 0.0-1.0：
+     * - 低值（如 0.3）：更确定、重复性较低
+     * - 高值（如 1.0）：更多样化、更具创意
+     */
     val temperature: Float = 0.7f,
+
+    /**
+     * AI 模型的 top-p 参数（核采样阈值）。
+     * UI 滑动条显示当前值，控制生成的词汇选择范围：
+     * - 低值：只选择高概率词汇，输出更稳定
+     * - 高值：考虑更多词汇，输出更丰富
+     */
     val topP: Float = 0.9f,
+
+    /**
+     * AI 模型的 top-k 参数（预采样词元数量）。
+     * UI 滑动条显示当前值，控制候选词汇的池大小：
+     * - 低值（如 10）：限制在少数字词，输出更连贯
+     * - 高值（如 100）：更多候选词，输出更多样
+     */
     val topK: Int = 40,
+
+    /**
+     * AI 生成响应的最大 token 数限制。
+     * UI 滑动条或输入框显示当前值：
+     * - 控制单次响应的最大长度
+     * - 值越大，AI 可以生成更长的回答
+     */
     val maxTokens: Int = 32768,
+
+    /**
+     * 指示 AI 引擎是否已完成初始化。
+     * - false: 显示"模型未初始化"状态，某些功能被禁用
+     * - true: 引擎已就绪，可以开始对话
+     */
     val isModelInitialized: Boolean = false,
 
+    /**
+     * 指示当前是否正在下载模型文件。
+     * - true: 显示下载进度条或提示，禁用下载按钮
+     * - false: 下载尚未开始或已完成
+     */
     val modelDownloading: Boolean = false,
+
+    /**
+     * 指示模型下载是否成功完成。
+     * - true: 下载完成，显示成功提示，提供继续操作的入口
+     * - false: 下载尚未完成或未执行
+     */
     val modelDownloadSuccess: Boolean = false,
+
+    /**
+     * 指示模型下载是否发生错误。
+     * - true: 显示错误信息，提供重试选项
+     * - false: 下载错误或尚未发生错误
+     */
     val modelDownloadError: Boolean = false,
 
+    /**
+     * 指示是否显示"设置已保存"的确认消息。
+     * - true: 显示保存成功的 Toast 或 Snackbar 提示
+     * - false: 不显示保存消息
+     */
     val showSavedMessage: Boolean = false,
+
+    /**
+     * 指示是否显示取消设置变更的确认对话框。
+     * - true: 显示"确定要放弃吗？"对话框
+     * - false: 取消对话框已关闭
+     */
     val showCancel: Boolean = false,
 
+    /**
+     * 指示是否显示"模型已初始化"的提示对话框。
+     * - true: 显示引擎初始化成功的提示
+     * - false: 提示对话框已关闭
+     */
     val showModelInitialized: Boolean = false
 )

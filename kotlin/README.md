@@ -23,7 +23,7 @@ An interactive text adventure game powered by LiteRT-LM for Android.
 LiteAgent_Planner/
 ├── app/
 │   ├── src/main/
-│   │   ├── java/com/liteagent/textadventure/
+│   │   ├── java/com/zeerd/textadventure/
 │   │   │   ├── MainActivity.kt              # Main activity and navigation
 │   │   │   ├── TextAdventureApp.kt          # Application class
 │   │   │   ├── data/

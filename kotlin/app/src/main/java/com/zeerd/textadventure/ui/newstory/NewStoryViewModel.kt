@@ -400,17 +400,78 @@ class NewStoryViewModel @Inject constructor(
 }
 
 /**
- * 新故事界面的 UI 状态。
+ * 新故事界面 (NewStoryScreen) 的 UI 状态。
+ * 该状态通过 _uiState 流驱动 NewStoryScreen 的组合，控制故事选择和启动的 UI 流程。
  */
 data class NewStoryUiState(
+    /**
+     * 控制历史故事列表面板的显示/隐藏。
+     * - true: 显示 HistoryScreen，展示已有的故事列表供用户选择或删除
+     * - false: 隐藏历史记录面板，显示新故事选择界面
+     */
     val showHistory: Boolean = false,
-    val startingStory: Boolean = false, // 是否正在启动故事
-    val storyStarted: Boolean = false, // 故事是否已启动（用于导航）
+
+    /**
+     * 指示是否正在启动新故事（AI 引擎初始化中）。
+     * - true: 显示加载指示器和禁用其他交互，防止用户重复点击
+     * - false: AI 引擎尚未开始初始化
+     */
+    val startingStory: Boolean = false,
+
+    /**
+     * 指示故事是否已启动成功（用于触发导航）。
+     * - true: 表示新故事已成功启动，MainViewModel 需要恢复 AI 上下文
+     *         用于通知应用程序导航到主聊天界面
+     * - false: 故事尚未启动
+     */
+    val storyStarted: Boolean = false,
+
+    /**
+     * 指示是否发生错误。
+     * - true: 表示启动了错误处理流程，可能显示错误提示
+     * - false: 当前没有错误状态
+     */
     val hasError: Boolean = false,
+
+    /**
+     * 显示详细的错误信息（如"模型未找到"、"引擎初始化失败"等）。
+     * - 非 null 时，通过 Snackbar 或错误提示组件显示给用户
+     * - 用于告知用户具体问题以便修复
+     */
     val errorMessage: String? = null,
+
+    /**
+     * 显示故事的开场介绍文本（AI 生成的引言）。
+     * - 非 null 时，显示故事开篇，作为对话的起始点
+     * - 用于向用户展示故事的背景和开始情境
+     */
     val storyIntro: String? = null,
+
+    /**
+     * 新创建故事的唯一标识符 (ID)。
+     * - 非 null 时，用于后续操作（如加载对话历史、更新 AI 上下文）
+     * - 传递给 MainViewModel.loadSession() 以恢复 AI 上下文
+     */
     val newStoryId: String? = null,
+
+    /**
+     * 指示 AI 模型是否已完成初始化。
+     * - false: 显示"模型加载中"状态，阻止用户启动故事
+     * - true: 模型已就绪，用户可以开始新故事
+     */
     val isModelInitialized: Boolean = false,
+
+    /**
+     * 显示用户选中的背景文件的文件名（不含扩展名）。
+     * - 非 null 时，显示已选文件名称，提供用户确认
+     * - 为空表示尚未选择任何背景文件
+     */
     val selectedFileName: String? = null,
+
+    /**
+     * 指示是否已满足启动故事的所有条件。
+     * - true: 表示用户已选择有效背景文件且模型就绪，"开始故事"按钮启用
+     * - false: "开始故事"按钮被禁用（尚未选择文件或模型未就绪）
+     */
     val canStartStory: Boolean = false
 )
