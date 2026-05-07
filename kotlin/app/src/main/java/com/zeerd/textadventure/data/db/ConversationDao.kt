@@ -71,7 +71,7 @@ interface ConversationDao {
     /**
      * 统计指定会话中 AI 生成的消息数量。
      */
-    @Query("SELECT COUNT(*) FROM conversation_table WHERE active_session_id = :sessionId AND role = 'ai'")
+    @Query("SELECT COUNT(*) FROM conversation_table WHERE active_session_id = :sessionId AND role = 'assistant'")
     fun getAiMessageCount(sessionId: String): Flow<Int>
 
     /**

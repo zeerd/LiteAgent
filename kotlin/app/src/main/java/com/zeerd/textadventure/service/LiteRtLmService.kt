@@ -16,6 +16,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -66,6 +68,18 @@ class LiteRtLmService @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // 用于通知 MainViewModel 开启新故事并生成开场白
+    private val _newStorySignal = MutableSharedFlow<Pair<String, String>>()
+    val newStorySignal = _newStorySignal.asSharedFlow()
+
+    /**
+     * 发送开启新故事的信号。
+     */
+    suspend fun triggerNewStory(sessionId: String, settingContent: String) {
+        Log.d(TAG, "Triggering new story signal for session: $sessionId")
+        _newStorySignal.emit(sessionId to settingContent)
+    }
 
     // 历史消息追踪，用于压缩逻辑
     private val _historyMessages = mutableListOf<ContextCompressor.Message>()
@@ -362,6 +376,7 @@ class LiteRtLmService @Inject constructor(
             } else {
                 // 普通对话流
                 conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
+                    // Log.v(TAG, "Received partial response: $partialResponse")
                     _currentMessage.value += partialResponse.toString()
                     responseBuilder.append(partialResponse.toString())
                 }
@@ -412,6 +427,11 @@ class LiteRtLmService @Inject constructor(
             _historyMessages.clear()
 
             conversation?.close()
+            Log.i(TAG, ">>> RE-PASSING CONTEXT TO LLM ENGINE (After Compression) <<<")
+            Log.d(TAG, "SYSTEM_INSTRUCTION:\n$_systemPrompt")
+            Log.d(TAG, "COMPRESSED_HISTORY (User):\n$compressedHistory")
+            Log.d(TAG, "ASSISTANT_ACK: Acknowledged")
+
             val conversationConfig = ConversationConfig(
                 systemInstruction = Contents.of(_systemPrompt),
                 initialMessages = listOf(
@@ -446,11 +466,21 @@ class LiteRtLmService @Inject constructor(
             _historyMessages.clear()
             _historyMessages.addAll(messages)
 
+            Log.i(TAG, ">>> RE-PASSING CONTEXT TO LLM ENGINE (Restore History) <<<")
+            Log.d(TAG, "SYSTEM_INSTRUCTION:\n$_systemPrompt")
+            messages.forEachIndexed { index, msg ->
+                Log.d(TAG, "HISTORY_MSG #$index [${msg.role}]:\n${msg.content}")
+            }
+
             val conversationConfig = ConversationConfig(
                 systemInstruction = Contents.of(_systemPrompt),
                 initialMessages = messages.map { msg ->
-                    if (msg.role == "user") Message.user(msg.content)
-                    else Message.model(msg.content)
+                    // 如果是 user 或从数据库恢复的 system(故事背景)，都作为用户输入发送给 LLM
+                    if (msg.role == "user" || msg.role == "system") {
+                        Message.user(msg.content)
+                    } else {
+                        Message.model(msg.content)
+                    }
                 }
             )
 
@@ -472,6 +502,9 @@ class LiteRtLmService @Inject constructor(
         Log.v(TAG, ">>> resetConversation() called")
         try {
             _historyMessages.clear()
+
+            Log.i(TAG, ">>> RESETTING CONVERSATION WITH SYSTEM PROMPT <<<")
+            Log.d(TAG, "SYSTEM_INSTRUCTION:\n$_systemPrompt")
 
             val newConfig = ConversationConfig(
                 systemInstruction = Contents.of(_systemPrompt)

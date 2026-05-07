@@ -190,7 +190,7 @@ Now output the world state snapshot:
         val historyText = historyMessages.joinToString("\n") { msg ->
             val roleLabel = when (msg.role) {
                 "user" -> "User"
-                "assistant" -> "AI"
+                "assistant" -> "Assistant"
                 else -> msg.role
             }
             "$roleLabel: ${msg.content}"

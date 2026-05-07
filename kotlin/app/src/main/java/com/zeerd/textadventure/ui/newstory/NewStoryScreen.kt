@@ -17,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.zeerd.textadventure.R
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -50,12 +52,12 @@ fun NewStoryScreen(
             // 如果不在历史模式，显示标准的 TopAppBar
             if (!uiState.showHistory) {
                 TopAppBar(
-                    title = { Text("New Story") },
+                    title = { Text(stringResource(R.string.new_story_title)) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back"
+                                contentDescription = stringResource(R.string.back)
                             )
                         }
                     }
@@ -90,14 +92,14 @@ fun NewStoryScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Create a New Adventure",
+                        text = stringResource(R.string.create_new_adventure),
                         style = MaterialTheme.typography.headlineSmall,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(vertical = 16.dp)
                     )
 
                     Text(
-                        text = "Upload a background setting file to start your personalized story.",
+                        text = stringResource(R.string.upload_background_setting_hint),
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -125,7 +127,7 @@ fun NewStoryScreen(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            "Select Background Setting",
+                            stringResource(R.string.select_background_setting),
                             style = MaterialTheme.typography.titleMedium
                         )
                     }
@@ -145,7 +147,7 @@ fun NewStoryScreen(
                             contentDescription = null
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("View Story History")
+                        Text(stringResource(R.string.view_story_history))
                     }
 
                     // 展示当前选中的文件名
@@ -161,7 +163,7 @@ fun NewStoryScreen(
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                    text = "Selected Setting:",
+                                    text = stringResource(R.string.selected_setting),
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
@@ -192,7 +194,7 @@ fun NewStoryScreen(
                     // 错误提示
                     if (uiState.hasError) {
                         Text(
-                            text = uiState.errorMessage ?: "An unknown error occurred",
+                            text = uiState.errorMessage ?: stringResource(R.string.error_title),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(vertical = 8.dp)
@@ -209,7 +211,7 @@ fun NewStoryScreen(
                             modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Cancel")
+                            Text(stringResource(R.string.cancel))
                         }
 
                         Button(
@@ -221,7 +223,7 @@ fun NewStoryScreen(
                                 containerColor = MaterialTheme.colorScheme.primary
                             )
                         ) {
-                            Text(if (uiState.startingStory) "Starting..." else "Start Story")
+                            Text(if (uiState.startingStory) stringResource(R.string.starting) else stringResource(R.string.start_story))
                         }
                     }
                 }
@@ -250,7 +252,14 @@ fun HistoryScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text(if (isSelectionMode) "${selectedIds.size} Selected" else "Story History") },
+            title = {
+                Text(
+                    if (isSelectionMode)
+                        stringResource(R.string.selected_count, selectedIds.size)
+                    else
+                        stringResource(R.string.history_title)
+                )
+            },
             navigationIcon = {
                 IconButton(onClick = {
                     if (isSelectionMode) {
@@ -262,7 +271,7 @@ fun HistoryScreen(
                 }) {
                     Icon(
                         imageVector = if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
+                        contentDescription = stringResource(R.string.back)
                     )
                 }
             },
@@ -274,12 +283,12 @@ fun HistoryScreen(
                         isSelectionMode = false
                         selectedIds = emptySet()
                     }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete Selected")
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_selected))
                     }
                 } else if (stories.isNotEmpty()) {
                     // 非选择模式，显示编辑按钮进入选择模式
                     IconButton(onClick = { isSelectionMode = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Selection Mode")
+                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.selection_mode))
                     }
                 }
             }
@@ -292,7 +301,7 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Icon(Icons.Default.History, null, modifier = Modifier.size(64.dp))
-                Text("No stories yet", style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.no_stories_yet), style = MaterialTheme.typography.titleLarge)
             }
         } else {
             LazyColumn(
@@ -346,12 +355,12 @@ fun HistoryScreen(
 
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Text(
-                                        text = "Created: ${dateFormatter.format(Date(story.createdAt))}",
+                                        text = stringResource(R.string.created_at, dateFormatter.format(Date(story.createdAt))),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = "Active: ${dateFormatter.format(Date(story.lastActive))}",
+                                        text = stringResource(R.string.active_at, dateFormatter.format(Date(story.lastActive))),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -368,7 +377,7 @@ fun HistoryScreen(
                             }
                             if (!isSelectionMode) {
                                 IconButton(onClick = { viewModel.deleteStory(story.id) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete")
+                                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
                                 }
                             }
                         }

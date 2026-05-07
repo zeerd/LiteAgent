@@ -8,6 +8,11 @@
 
     <!-- Main Screen -->
     <string name="chat_placeholder">输入消息...</string>
+    <string name="send">发送</string>
+    <string name="ai_thinking">AI 正在思考...</string>
+    <string name="message_long_press_hint">消息，长按复制</string>
+    <string name="copy_text">复制文本</string>
+    <string name="copied_to_clipboard">已复制到剪贴板</string>
     <string name="welcome_message_text">欢迎来到文字冒险！从“新故事”开始你的冒险之旅。</string>
     <string name="no_story_message">请在“新故事”页面选择一个故事背景开始游戏。</string>
 
@@ -18,12 +23,16 @@
     <string name="language_en">英文 (English)</string>
     <string name="model_backend_title">模型后端</string>
     <string name="model_backend_huggingface">HuggingFace</string>
+    <string name="huggingface_subtitle">开源社区模型</string>
     <string name="model_backend_modelscope">魔搭社区 (ModelScope)</string>
+    <string name="modelscope_subtitle">阿里巴巴模型平台</string>
     <string name="download_models">下载模型</string>
     <string name="select_model">选择模型</string>
     <string name="open_folder">打开文件夹</string>
     <string name="llm_config_title">LLM 配置</string>
     <string name="temperature">温度 (Temperature)</string>
+    <string name="top_p">Top-P (核采样)</string>
+    <string name="top_k">Top-K (采样)</string>
     <string name="max_tokens">最大 Token 数</string>
     <string name="system_prompt">系统提示词 (System Prompt)</string>
     <string name="save_settings">保存设置</string>
@@ -33,9 +42,16 @@
     <string name="current_model">当前模型：</string>
     <string name="none_selected">未选择</string>
     <string name="web_browser">网页浏览器</string>
+    <string name="app_version">版本 %s</string>
 
     <!-- New Story Screen -->
     <string name="new_story_title">新故事</string>
+    <string name="create_new_adventure">开始新的冒险</string>
+    <string name="upload_background_setting_hint">上传背景设定文件以开始您的个性化故事。</string>
+    <string name="select_background_setting">选择背景设定</string>
+    <string name="view_story_history">查看故事历史</string>
+    <string name="selected_setting">已选设定：</string>
+    <string name="starting">启动中...</string>
     <string name="select_story_setting">选择故事背景</string>
     <string name="story_setting_fantasy">奇幻冒险</string>
     <string name="story_setting_scifi">科幻迷局</string>
@@ -66,19 +82,28 @@
 
     <!-- History -->
     <string name="history_title">故事历史</string>
+    <string name="selected_count">已选择 %d 项</string>
     <string name="no_history">暂无历史记录</string>
+    <string name="no_stories_yet">还没有故事</string>
     <string name="delete_history">删除历史</string>
+    <string name="delete_selected">删除所选</string>
+    <string name="selection_mode">选择模式</string>
     <string name="delete_confirm">确定要删除这个故事吗？</string>
+    <string name="created_at">创建于：%s</string>
+    <string name="active_at">活跃于：%s</string>
+    <string name="delete">删除</string>
 
     <!-- Messages -->
     <string name="model_download_start">开始下载模型...</string>
     <string name="model_download_success">模型下载成功！</string>
     <string name="model_download_error">模型下载失败</string>
+    <string name="error_engine_init_failed">AI 引擎初始化失败</string>
+    <string name="error_ai_response_failed">AI 响应失败</string>
     <string name="conversation_started">新对话已开启</string>
     <string name="conversation_ended">故事已结束</string>
 
     <!-- Prompts -->
-    <string name="default_system_prompt">你是一位文字冒险游戏主持人。请创造引人入胜、互动性强的故事情节，让用户的选择影响剧情发展。\n故事应为玩家提供挑战、机会和选择。\n请以角色身份回应，并提供 2-4 个选项供玩家选择。\n保持故事情节流畅，并带有有趣的剧情发展。</string>
     <string name="language_instruction_prompt">请使用中文与用户交流。</string>
+    <string name="story_instruction_prompt">你是一位文字冒险游戏主持人。请基于以下信息创造引人入胜、互动性强的故事情节，让用户的选择影响剧情发展。\n故事应为玩家提供挑战、机会和选择。\n请以角色身份回应，并提供 2-4 个选项供玩家选择。\n保持故事情节流畅，并带有有趣的剧情发展。</string>
 
 </resources>

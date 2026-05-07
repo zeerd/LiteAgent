@@ -6,6 +6,12 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val gitCommitId = try {
+    Runtime.getRuntime().exec("git rev-parse --short HEAD").inputStream.bufferedReader().readText().trim()
+} catch (e: Exception) {
+    "unknown"
+}
+
 android {
     namespace = "com.zeerd.textadventure"
     compileSdk = 35
@@ -15,7 +21,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0-$gitCommitId"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

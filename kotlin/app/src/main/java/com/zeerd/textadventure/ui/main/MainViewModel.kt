@@ -1,5 +1,6 @@
 package com.zeerd.textadventure.ui.main
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,24 +11,34 @@ import com.zeerd.textadventure.data.repository.StoryHistoryRepository
 import com.zeerd.textadventure.model.ChatMessage
 import com.zeerd.textadventure.model.QuickAction
 import com.zeerd.textadventure.service.LiteRtLmService
+import com.zeerd.textadventure.R
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
 import javax.inject.Inject
 
 /**
  * 主界面的视图模型，处理游戏的核心聊天逻辑、模型初始化和状态管理。
+ *
+ * 【统一的会话保存和显示机制】
+ * - sendMessage(): 统一入口，根据角色类型决定保存逻辑
+ * - saveToDatabase(): 将消息存入数据库
+ * - observeSessionMessages(): 监听数据库变化，自动同步到 UI
+ * - handleUserMessage(): 处理用户消息，触发 AI 生成
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val conversationRepository: ConversationRepository,
     private val storyHistoryRepository: StoryHistoryRepository,
     private val appSettingsRepository: AppSettingsRepository,
-    private val liteRtLmService: LiteRtLmService
+    private val liteRtLmService: LiteRtLmService,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     companion object {
@@ -40,6 +51,7 @@ class MainViewModel @Inject constructor(
 
     // 当前活动的故事会话 ID
     private val _currentSessionId = MutableStateFlow<String?>(null)
+    private var initializedSessionId: String? = null
 
     // 快捷动作列表
     private val _quickActions = MutableStateFlow<List<QuickAction>>(emptyList())
@@ -49,7 +61,7 @@ class MainViewModel @Inject constructor(
         Log.d(TAG, "Initializing MainViewModel")
         setupQuickActions()
         observeSessionMessages()
-        observeLatestSession()
+        observeLatestStory()
 
         // 观察 LiteRT-LM 服务的初始化状态
         viewModelScope.launch {
@@ -61,7 +73,7 @@ class MainViewModel @Inject constructor(
         // 观察 AI 当前正在生成的消息（流式更新）
         viewModelScope.launch {
             liteRtLmService.currentMessage.collect { message ->
-                _uiState.update { it.copy(currentMessage = message) }
+                _uiState.update { it.copy(currentMessage = cleanAiResponse(message)) }
             }
         }
 
@@ -71,102 +83,103 @@ class MainViewModel @Inject constructor(
                 _uiState.update { it.copy(isProcessing = isProcessing) }
             }
         }
-    }
 
-    /**
-     * 观察数据库中消息的变化，以便在需要时加载最新会话。
-     */
-    private fun observeLatestSession() {
-        Log.v(TAG, "Observing latest session from database...")
+        // 监听来自 NewStoryViewModel 的显式“新故事”启动信号
         viewModelScope.launch {
-            conversationRepository.getMessageCount().collect { count ->
-                loadLatestSession()
+            liteRtLmService.newStorySignal.collect { (sessionId, settingContent) ->
+                Log.i(TAG, "Received new story signal for session: $sessionId. Initializing engine for intro generation.")
+                liteRtLmService.getScope().launch {
+                    if (ensureEngineInitialized(sessionId)) {
+                        generateIntroForNewStory(sessionId, settingContent)
+                    }
+                }
             }
         }
     }
 
     /**
-     * 加载数据库中最后活跃的会话。
+     * 观察数据库中故事的变化，以便在需要时加载最新会话。
      */
-    fun loadLatestSession() {
-        Log.v(TAG, "Loading latest session from database...")
+    private fun observeLatestStory() {
+        Log.v(TAG, "Observing latest story from database...")
         viewModelScope.launch {
-            val latestMessage = withContext(Dispatchers.IO) {
-                conversationRepository.getLatestMessage()
-            }
-            if (latestMessage != null) {
-                // 如果会话 ID 发生变化，更新当前会话并恢复 AI 上下文
-                if (_currentSessionId.value != latestMessage.activeSessionId) {
-                    val sessionId = latestMessage.activeSessionId!!
-                    _currentSessionId.value = sessionId
-                    restoreSessionContext(sessionId)
+            storyHistoryRepository.getAllStories().collect { stories ->
+                val latestStory = stories.maxByOrNull { it.lastActive }
+                if (latestStory != null) {
+                    // 如果会话 ID 发生变化，更新当前会话并恢复 AI 上下文
+                    if (_currentSessionId.value != latestStory.id) {
+                        _currentSessionId.value = latestStory.id
+                        restoreSessionContext(latestStory.id)
+                    }
+                } else {
+                    // 如果没有历史记录，创建一个新的空会话 ID（但不保存到数据库，直到有消息）
+                    if (_currentSessionId.value == null) {
+                        _currentSessionId.value = UUID.randomUUID().toString()
+                    }
                 }
-            } else {
-                // 如果没有历史记录，创建一个新的空会话
-                if (_currentSessionId.value == null) {
-                    _currentSessionId.value = UUID.randomUUID().toString()
-                }
             }
+        }
+    }
+
+    /**
+     * 确保 AI 引擎已针对指定会话初始化。
+     * 如果引擎未初始化，则进行完整初始化；如果已针对其他会话初始化，则仅恢复历史记录。
+     */
+    private suspend fun ensureEngineInitialized(sessionId: String): Boolean {
+        if (liteRtLmService.isInitialized.value && initializedSessionId == sessionId) {
+            return true
+        }
+
+        return try {
+            val appSettings = appSettingsRepository.getSettings()
+            val modelPath = appSettings.selectedModelPath
+            if (modelPath == null || !File(modelPath).exists()) return false
+
+            if (!liteRtLmService.isInitialized.value) {
+                Log.d(TAG, "Performing full engine initialization for session: $sessionId")
+                val skillDir = extractSkillsFromAssets()
+                val isInitSuccess = liteRtLmService.initialize(
+                    engineConfig = liteRtLmService.getEngineConfig().copy(
+                        modelPath = modelPath,
+                        backend = if (appSettings.accelerationMode == "GPU")
+                            com.google.ai.edge.litertlm.Backend.GPU()
+                        else
+                            com.google.ai.edge.litertlm.Backend.CPU(),
+                        maxNumTokens = appSettings.maxTokens
+                    ),
+                    skillDir = skillDir,
+                    allowedSkills = listOf("text-adventure"),
+                    compressionThreshold = 0.75f,
+                    temperature = appSettings.temperature
+                )
+                if (!isInitSuccess) return false
+            }
+
+            Log.d(TAG, "Restoring history context for session: $sessionId")
+            val messages = withContext(Dispatchers.IO) {
+                conversationRepository.getMessagesBySessionSync(sessionId)
+            }
+            val serviceMessages = messages.map { entity ->
+                com.zeerd.textadventure.service.ContextCompressor.Message(
+                    role = entity.role, content = entity.text
+                )
+            }
+            liteRtLmService.restoreHistory(serviceMessages)
+            initializedSessionId = sessionId
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in ensureEngineInitialized: ${e.message}", e)
+            false
         }
     }
 
     /**
      * 恢复指定会话的 LLM 上下文。
-     * 这包括重新初始化引擎并加载历史消息。
+     * 遵循延迟初始化原则：仅加载 UI 消息，不主动初始化引擎（除非是明确的新故事启动信号）。
      */
     private fun restoreSessionContext(sessionId: String) {
-        Log.v(TAG, "Restoring session context for session: $sessionId")
-        viewModelScope.launch {
-            try {
-                val messages = withContext(Dispatchers.IO) {
-                    conversationRepository.getMessagesBySessionSync(sessionId)
-                }
-
-                if (messages.isEmpty()) return@launch
-
-                liteRtLmService.getScope().launch {
-                    try {
-                        val appSettings = appSettingsRepository.getSettings()
-                        val modelPath = appSettings.selectedModelPath
-
-                        if (modelPath == null || !File(modelPath).exists()) return@launch
-
-                        val skillDir = "/data/user/0/com.zeerd.textadventure/files/skills"
-
-                        // 初始化引擎
-                        val isInitSuccess = liteRtLmService.initialize(
-                            engineConfig = liteRtLmService.getEngineConfig().copy(
-                                modelPath = modelPath,
-                                backend = if (appSettings.accelerationMode == "GPU")
-                                    com.google.ai.edge.litertlm.Backend.GPU()
-                                else
-                                    com.google.ai.edge.litertlm.Backend.CPU(),
-                                maxNumTokens = appSettings.maxTokens
-                            ),
-                            skillDir = skillDir,
-                            allowedSkills = listOf("text-adventure"),
-                            compressionThreshold = 0.75f,
-                            temperature = appSettings.temperature
-                        )
-
-                        if (isInitSuccess) {
-                            // 恢复历史消息到引擎内存
-                            val serviceMessages = messages.map { entity ->
-                                com.zeerd.textadventure.service.ContextCompressor.Message(
-                                    role = entity.role,
-                                    content = entity.text
-                                )
-                            }
-                            liteRtLmService.restoreHistory(serviceMessages)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to restore LLM context: ${e.message}", e)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error in restoreSessionContext: ${e.message}", e)
-            }
-        }
+        Log.v(TAG, "Restoring session context for session: $sessionId. Engine initialization deferred.")
+        // 此处不再主动初始化引擎或生成开场白，改为在第一次发送消息时或通过 newStorySignal 触发。
     }
 
     /**
@@ -181,7 +194,7 @@ class MainViewModel @Inject constructor(
     }
 
     /**
-     * 观察当前会话的消息列表并更新 UI。
+     * 观察当前会话的消息列表并更新 UI（数据库 -> UI 自动同步）。
      */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private fun observeSessionMessages() {
@@ -195,37 +208,30 @@ class MainViewModel @Inject constructor(
                         text = entity.text,
                         role = when (entity.role) {
                             "user" -> ChatMessage.Role.USER
-                            "ai", "assistant" -> ChatMessage.Role.ASSISTANT
+                            "assistant" -> ChatMessage.Role.ASSISTANT
                             "system" -> ChatMessage.Role.SYSTEM
                             else -> ChatMessage.Role.ASSISTANT
-                        }
+                        },
+                        timestamp = entity.timestamp  // ✅ 映射时间戳
                     )
                 }
 
-                if (chatMessages.isEmpty()) {
-                    Log.v(TAG, "No messages found for session: ${_currentSessionId.value}")
-                } else {
+                if (chatMessages.isNotEmpty()) {
                     _uiState.update {
-                        Log.v(TAG, "Updating UI with ${chatMessages.size} messages for session: ${_currentSessionId.value}")
-                        it.copy(
-                            messages = chatMessages,
-                            showWelcome = chatMessages.isEmpty()
-                        )
+                        it.copy(messages = chatMessages, showWelcome = false)
                     }
                 }
             }
         }
     }
 
-    private fun setupQuickActions() {
-        // 配置快捷动作（如需要可在此添加）
-    }
+    private fun setupQuickActions() {}
 
     /**
      * 清空当前聊天界面。
      */
     fun clearChat() {
-        Log.v(TAG, "Clearing chat for current session: ${_currentSessionId.value}")
+        Log.v(TAG, "Clearing chat for session: ${_currentSessionId.value}")
         _uiState.update {
             it.copy(messages = emptyList(), currentMessage = null, showWelcome = true, selectedQuickAction = null)
         }
@@ -235,98 +241,200 @@ class MainViewModel @Inject constructor(
      * 处理用户输入内容的变化。
      */
     fun onInputChange(text: String) {
-        if (text.isNotEmpty()) {
-            _uiState.update { it.copy(showWelcome = false) }
-        }
-        _uiState.update { it.copy(userInput = text, selectedQuickAction = null) }
+        _uiState.update { it.copy(userInput = text, showWelcome = false != text.isEmpty(), selectedQuickAction = null) }
     }
 
     /**
-     * 发送聊天消息。
+     * 【统一发送消息入口】
+     * 根据角色类型决定保存逻辑：
+     * - USER → 保存到数据库 + 触发 AI 响应
+     * - ASSISTANT/SYSTEM → 直接显示到 UI（数据库会自动同步）
      */
+    fun sendMessage(text: String, role: ChatMessage.Role, onAiResponse: ((String) -> Unit)? = null) {
+        val sessionId = _currentSessionId.value ?: return
+        val currentTime = System.currentTimeMillis()
+        val message = ChatMessage(
+            id = UUID.randomUUID().toString(),
+            text = text,
+            role = role,
+            timestamp = currentTime
+        )
+
+        when (role) {
+            ChatMessage.Role.USER -> {
+                Log.v(TAG, "Sending user message: $text")
+                viewModelScope.launch {
+                    saveToDatabase(sessionId, message.id, text, "user", currentTime)
+                    onAiResponse?.invoke(message.id)
+                }
+            }
+            else -> {
+                Log.v(TAG, "Adding $role message to UI: $text")
+                _uiState.update {
+                    it.copy(userInput = "", showWelcome = false, messages = it.messages + message)
+                }
+            }
+        }
+    }
+
+    /**
+     * 将消息存入数据库（IO 操作）。
+     */
+    private suspend fun saveToDatabase(sessionId: String, messageId: String, text: String, role: String, timestamp: Long) {
+        withContext(Dispatchers.IO) {
+            conversationRepository.addMessage(
+                ConversationEntity(
+                    messageId = messageId, text = text, role = role,
+                    sessionId = sessionId, activeSessionId = sessionId, timestamp = timestamp
+                )
+            )
+        }
+    }
+
+    /**
+     * 处理用户消息：触发 AI 响应生成流程。
+     */
+    private fun handleUserMessage(sessionId: String, prompt: String) {
+        viewModelScope.launch {
+            Log.v(TAG, "Generating AI response for: $prompt")
+            _uiState.update { it.copy(isProcessing = true) }
+
+            try {
+                // 确保引擎已初始化并加载了正确的会话历史
+                if (!ensureEngineInitialized(sessionId)) {
+                    _uiState.update { it.copy(isProcessing = false, error = context.getString(R.string.error_engine_init_failed)) }
+                    return@launch
+                }
+
+                val response = liteRtLmService.chat(prompt)
+                if (response.isNotEmpty()) {
+                    val cleanedResponse = cleanAiResponse(response)
+                    Log.v(TAG, "AI response generated: $cleanedResponse")
+
+                    saveToDatabase(sessionId, UUID.randomUUID().toString(), cleanedResponse, "assistant", System.currentTimeMillis())
+                    _uiState.update { it.copy(isProcessing = false, currentMessage = null) }
+                    updateStoryLastActive(sessionId)
+                } else {
+                    _uiState.update { it.copy(isProcessing = false, error = context.getString(R.string.error_ai_response_failed)) }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error generating AI response", e)
+                _uiState.update { it.copy(isProcessing = false, error = e.message ?: "Unknown error") }
+            }
+        }
+    }
+
     fun sendChatMessage() {
         val text = _uiState.value.userInput ?: return
         if (text.isEmpty()) return
 
-        Log.v(TAG, "Sending chat message: ${_uiState.value.userInput}")
-        _uiState.update { it.copy(userInput = "", selectedQuickAction = null) }
+        // 立即清空输入框，提升用户体验
+        _uiState.update { it.copy(userInput = "") }
 
-        val sessionId = _currentSessionId.value ?: return
-
-        val userMessage = ChatMessage(
-            id = UUID.randomUUID().toString(),
-            text = text,
-            role = ChatMessage.Role.USER
-        )
-
-        viewModelScope.launch {
-            // 保存用户消息
-            saveMessage(ConversationEntity(
-                messageId = userMessage.id,
-                text = userMessage.text,
-                role = "user",
-                sessionId = sessionId,
-                activeSessionId = sessionId
-            ))
-
-            // 调用 AI 生成响应
-            generateAiResponse(sessionId, text)
+        sendMessage(text, ChatMessage.Role.USER) { _ ->
+            val sessionId = _currentSessionId.value ?: return@sendMessage
+            handleUserMessage(sessionId, text)
         }
     }
 
     /**
-     * 调用 AI 服务生成对话内容。
+     * 调用 AI 服务生成开场白（新故事）。
      */
-    private suspend fun generateAiResponse(sessionId: String, prompt: String) {
+    private suspend fun generateIntroForNewStory(sessionId: String, settingContent: String) {
         try {
-            Log.v(TAG, "Generating AI response for prompt:\n$prompt")
-            val response = liteRtLmService.chat(prompt)
+            Log.v(TAG, "Generating intro for new story: $sessionId")
+            _uiState.update { it.copy(isProcessing = true) }
 
-            if (response.isNotEmpty()) {
-                Log.v(TAG, "AI response generated:\n$response")
-                val aiMessage = ChatMessage(
-                    id = UUID.randomUUID().toString(),
-                    text = response,
-                    role = ChatMessage.Role.ASSISTANT
-                )
-
-                // 保存 AI 消息到数据库
-                saveMessage(ConversationEntity(
-                    messageId = aiMessage.id,
-                    text = aiMessage.text,
-                    role = "ai",
-                    sessionId = sessionId,
-                    activeSessionId = sessionId
-                ))
-
-                Log.d(TAG, "UI updated with new AI message, clearing currentMessage stream")
-                _uiState.update { it.copy(currentMessage = null) }
-
-                // 更新该故事的最后活动时间
-                viewModelScope.launch {
-                    try {
-                        val story = storyHistoryRepository.getStoryById(sessionId)
-                        if (story != null) {
-                            storyHistoryRepository.updateStory(story.copy(lastActive = System.currentTimeMillis()))
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error updating story last active time", e)
-                    }
-                }
-            } else {
-                _uiState.update { it.copy(error = "AI failed to respond") }
+            // 确保引擎已就绪
+            if (!ensureEngineInitialized(sessionId)) {
+                _uiState.update { it.copy(isProcessing = false, error = context.getString(R.string.error_engine_init_failed)) }
+                return
             }
+
+            val storyInstruction = context.getString(R.string.story_instruction_prompt)
+            val prompt = "$storyInstruction\n```markdown\n$settingContent\n```"
+            // 1. 先保存带前缀的指令到数据库（作为第一条消息，角色为 system 以便在 UI 中区分或隐藏）
+            saveToDatabase(sessionId, UUID.randomUUID().toString(), prompt, "system", System.currentTimeMillis())
+
+            // 2. 调用 AI 接口生成开场白
+            val response = liteRtLmService.chat(prompt)
+            val intro = cleanAiResponse(response)
+
+            // 3. 保存 AI 生成的开场白
+            saveToDatabase(sessionId, UUID.randomUUID().toString(), intro, "assistant", System.currentTimeMillis())
+
+            viewModelScope.launch {
+                val story = storyHistoryRepository.getStoryById(sessionId)
+                if (story != null) {
+                    storyHistoryRepository.updateStory(story.copy(storyBeginning = intro, messageCount = 2, lastActive = System.currentTimeMillis()))
+                }
+            }
+
+            _uiState.update { it.copy(isProcessing = false, currentMessage = null, showWelcome = false) }
         } catch (e: Exception) {
-            Log.e(TAG, "Error generating AI response", e)
-            _uiState.update {
-                it.copy(error = e.message ?: "Unknown error", currentMessage = null)
+            Log.e(TAG, "Error generating intro", e)
+            _uiState.update { it.copy(isProcessing = false, error = e.message ?: "Unknown error") }
+        }
+    }
+
+    /**
+     * 更新故事的最后活动时间。
+     */
+    private fun updateStoryLastActive(sessionId: String) {
+        viewModelScope.launch {
+            try {
+                val story = storyHistoryRepository.getStoryById(sessionId)
+                story?.let { storyHistoryRepository.updateStory(it.copy(lastActive = System.currentTimeMillis())) }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating last active", e)
             }
         }
     }
 
-    private suspend fun saveMessage(message: ConversationEntity) {
-        withContext(Dispatchers.IO) {
-            conversationRepository.addMessage(message)
+    /**
+     * 清理 AI 响应，提取实际的游戏内容。
+     */
+    private fun cleanAiResponse(text: String): String {
+        if (text.isEmpty()) return text
+
+        val codeBlockRegex = Regex("```(?:[\\w-]*)\n?(.*?)```", RegexOption.DOT_MATCHES_ALL)
+        codeBlockRegex.find(text)?.let {
+            val content = it.groupValues[1].trim()
+            if (content.isNotEmpty()) return content
+        }
+
+        if (text.contains("```")) {
+            val lastIndex = text.lastIndexOf("```")
+            val contentAfterLast = text.substring(lastIndex + 3)
+            val firstNewLine = contentAfterLast.indexOf('\n')
+            if (firstNewLine != -1) return contentAfterLast.substring(firstNewLine + 1).trim()
+            return ""
+        }
+
+        return text.trim()
+    }
+
+    /**
+     * 将 assets 中的技能定义提取到内部存储。
+     */
+    private fun extractSkillsFromAssets(): String {
+        val skillsDir = File(context.filesDir, "skills")
+        if (!skillsDir.exists()) skillsDir.mkdirs()
+
+        try {
+            val textAdventureDir = File(skillsDir, "text-adventure")
+            if (!textAdventureDir.exists()) textAdventureDir.mkdirs()
+
+            val skillFile = File(textAdventureDir, "SKILL.md")
+            if (!skillFile.exists()) {
+                context.assets.open("skills/text-adventure/SKILL.md").use { input ->
+                    FileOutputStream(skillFile).use { output -> input.copyTo(output) }
+                }
+            }
+            return skillsDir.absolutePath
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting skills", e)
+            return ""
         }
     }
 
@@ -339,11 +447,8 @@ class MainViewModel @Inject constructor(
      * 重新尝试最后一轮对话。
      */
     fun retryLastMessage() {
-        Log.v(TAG, "Retrying last message for session: ${_currentSessionId.value}")
         _uiState.value.messages.lastOrNull { it.role == ChatMessage.Role.USER }?.let { lastUserMsg ->
-            viewModelScope.launch {
-                generateAiResponse(_currentSessionId.value ?: return@launch, lastUserMsg.text)
-            }
+            viewModelScope.launch { handleUserMessage(_currentSessionId.value ?: return@launch, lastUserMsg.text) }
         }
     }
 

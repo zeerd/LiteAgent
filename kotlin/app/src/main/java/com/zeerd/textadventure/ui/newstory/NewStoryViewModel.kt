@@ -8,8 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.zeerd.textadventure.data.local.StorySettingsDataSource
 import com.zeerd.textadventure.data.repository.StoryHistoryRepository
 import com.zeerd.textadventure.data.db.StoryHistoryEntity
-import com.zeerd.textadventure.data.repository.ConversationRepository
-import com.zeerd.textadventure.data.db.ConversationEntity
 import com.zeerd.textadventure.data.local.AppSettingsRepository
 import com.zeerd.textadventure.model.StorySetting
 import com.zeerd.textadventure.service.LiteRtLmService
@@ -20,7 +18,6 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 import javax.inject.Inject
 
@@ -32,7 +29,6 @@ import javax.inject.Inject
 class NewStoryViewModel @Inject constructor(
     private val storySettingsDataSource: StorySettingsDataSource,
     val storyHistoryRepository: StoryHistoryRepository,
-    private val conversationRepository: ConversationRepository,
     private val appSettingsRepository: AppSettingsRepository,
     private val liteRtLmService: LiteRtLmService,
     @ApplicationContext private val context: Context
@@ -57,12 +53,6 @@ class NewStoryViewModel @Inject constructor(
 
     init {
         Log.d(TAG, "Initializing NewStoryViewModel")
-        // 观察 AI 模型的就绪状态
-        viewModelScope.launch {
-            liteRtLmService.isInitialized.collect { isInitialized ->
-                _uiState.update { it.copy(isModelInitialized = isInitialized) }
-            }
-        }
         // 加载上次选择的文件记录
         loadLastSelectedFile()
     }
@@ -174,31 +164,6 @@ class NewStoryViewModel @Inject constructor(
         return if (fileName.contains('.')) fileName.substringBeforeLast('.') else fileName
     }
 
-    /**
-     * 将 assets 中的技能定义提取到内部存储，以便 AI 引擎加载。
-     */
-    private fun extractSkillsFromAssets(): String {
-        val skillsDir = File(context.filesDir, "skills")
-        if (!skillsDir.exists()) skillsDir.mkdirs()
-
-        try {
-            val assetManager = context.assets
-            val textAdventureDir = File(skillsDir, "text-adventure")
-            if (!textAdventureDir.exists()) textAdventureDir.mkdirs()
-
-            val skillFile = File(textAdventureDir, "SKILL.md")
-            if (!skillFile.exists()) {
-                assetManager.open("skills/text-adventure/SKILL.md").use { input ->
-                    FileOutputStream(skillFile).use { output ->
-                        input.copyTo(output)
-                    }
-                }
-            }
-            return skillsDir.absolutePath
-        } catch (e: Exception) {
-            return ""
-        }
-    }
 
     /**
      * 点击“开始故事”后的逻辑流程。
@@ -210,8 +175,7 @@ class NewStoryViewModel @Inject constructor(
         val storyId = UUID.randomUUID().toString()
         _uiState.update { it.copy(startingStory = true, storyStarted = true, newStoryId = storyId, hasError = false) }
 
-        // 使用服务的长生命周期作用域进行初始化，防止由于页面导航导致 Job 取消
-        liteRtLmService.getScope().launch {
+        viewModelScope.launch {
             try {
                 // 1. 在历史数据库中创建初始条目
                 val initialHistoryEntry = StoryHistoryEntity(
@@ -234,74 +198,15 @@ class NewStoryViewModel @Inject constructor(
                         throw IllegalArgumentException("Setting file not found")
                     }
 
-                    val appSettings = appSettingsRepository.getSettings()
-                    val modelPath = appSettings.selectedModelPath
-
-                    if (modelPath == null || !File(modelPath).exists()) {
-                        throw IllegalStateException("Model not found. Please select a model in Settings first.")
-                    }
-
-                    val skillDir = extractSkillsFromAssets()
-
-                    // 2. 初始化 AI 引擎
-                    val isInitSuccess = liteRtLmService.initialize(
-                        engineConfig = liteRtLmService.getEngineConfig().copy(
-                            modelPath = modelPath,
-                            backend = if (appSettings.accelerationMode == "GPU")
-                                com.google.ai.edge.litertlm.Backend.GPU()
-                            else
-                                com.google.ai.edge.litertlm.Backend.CPU(),
-                            maxNumTokens = appSettings.maxTokens
-                        ),
-                        skillDir = skillDir,
-                        allowedSkills = listOf("text-adventure"),
-                        compressionThreshold = 0.75f,
-                        temperature = appSettings.temperature
-                    )
-
-                    if (!isInitSuccess) {
-                        throw IllegalStateException("Failed to initialize LiteRT-LM")
-                    }
-
-                    // 3. 将背景内容发送给 AI，获取故事开篇
-                    val response = liteRtLmService.chat(settingContent)
-                    val intro = if (response.contains("\n")) response else generateStoryIntroFromSetting(settingContent)
-
-                    // 4. 将背景消息和 AI 开篇存入对话数据库
-                    conversationRepository.addMessage(
-                        ConversationEntity(
-                            messageId = UUID.randomUUID().toString(),
-                            text = settingContent,
-                            role = "system", // 背景信息使用 system 角色
-                            sessionId = storyId,
-                            activeSessionId = storyId
-                        )
-                    )
-
-                    conversationRepository.addMessage(
-                        ConversationEntity(
-                            messageId = UUID.randomUUID().toString(),
-                            text = intro,
-                            role = "ai",
-                            sessionId = storyId,
-                            activeSessionId = storyId
-                        )
-                    )
-
-                    // 5. 更新历史记录中的最终开篇描述
-                    storyHistoryRepository.updateStory(initialHistoryEntry.copy(
-                        storyBeginning = intro,
-                        messageCount = 2
-                    ))
+                    // 不再直接存入对话数据库，而是通过信号交给 MainViewModel 统一处理（带上前缀指令）
+                    // 发送明确的新故事启动信号
+                    liteRtLmService.triggerNewStory(storyId, settingContent)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting new story: ${e.message}", e)
+                _uiState.update { it.copy(startingStory = false, storyStarted = false, hasError = true, errorMessage = e.message) }
             }
         }
-    }
-
-    private fun generateStoryIntroFromSetting(settingContent: String): String {
-        return "📖 *Story Initiated*\n\nBased on your selected setting, here begins your adventure.\n\n${settingContent.take(200)}...\n\nWhat would you like to do?"
     }
 
     fun onNewStoryDismiss() {
@@ -346,54 +251,14 @@ class NewStoryViewModel @Inject constructor(
         // 立即发送导航信号
         _uiState.update { it.copy(storyStarted = true, newStoryId = story.id) }
 
-        // 在后台恢复 AI 上下文环境
-        liteRtLmService.getScope().launch {
+        // 在后台更新最后活跃时间以触发 MainViewModel 的观察者
+        viewModelScope.launch {
             try {
-                val appSettings = appSettingsRepository.getSettings()
-                val modelPath = appSettings.selectedModelPath
-
-                if (modelPath == null || !File(modelPath).exists()) return@launch
-
-                val skillDir = extractSkillsFromAssets()
-
-                // 1. 初始化引擎
-                val isInitSuccess = liteRtLmService.initialize(
-                    engineConfig = liteRtLmService.getEngineConfig().copy(
-                        modelPath = modelPath,
-                        backend = if (appSettings.accelerationMode == "GPU")
-                            com.google.ai.edge.litertlm.Backend.GPU()
-                        else
-                            com.google.ai.edge.litertlm.Backend.CPU(),
-                        maxNumTokens = appSettings.maxTokens
-                    ),
-                    skillDir = skillDir,
-                    allowedSkills = listOf("text-adventure"),
-                    compressionThreshold = 0.75f,
-                    temperature = appSettings.temperature
-                )
-
-                if (isInitSuccess) {
-                    // 2. 加载历史消息
-                    val messages = withContext(Dispatchers.IO) {
-                        conversationRepository.getMessagesBySessionSync(story.id)
-                    }
-
-                    // 3. 将历史同步到 AI 引擎
-                    val serviceMessages = messages.map { entity ->
-                        com.zeerd.textadventure.service.ContextCompressor.Message(
-                            role = entity.role,
-                            content = entity.text
-                        )
-                    }
-                    liteRtLmService.restoreHistory(serviceMessages)
-
-                    // 4. 更新最后活跃时间以触发主界面的观察者
-                    withContext(Dispatchers.IO) {
-                        storyHistoryRepository.updateStory(story.copy(lastActive = System.currentTimeMillis()))
-                    }
+                withContext(Dispatchers.IO) {
+                    storyHistoryRepository.updateStory(story.copy(lastActive = System.currentTimeMillis()))
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Context restoration failed: ${e.message}")
+                Log.e(TAG, "Failed to update last active: ${e.message}")
             }
         }
     }

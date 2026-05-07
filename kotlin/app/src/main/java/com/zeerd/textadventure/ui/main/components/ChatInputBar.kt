@@ -12,6 +12,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.ui.res.stringResource
+import com.zeerd.textadventure.R
+
 /**
  * 聊天输入栏组件。
  * 包含一个多行文本输入框和一个发送按钮。
@@ -22,7 +25,7 @@ fun ChatInputBar(
     onSend: (String) -> Unit, // 点击发送时的回调
     value: String, // 当前输入框的值
     onValueChange: (String) -> Unit, // 值改变时的回调
-    placeholder: String = "Message...", // 占位符文本
+    placeholder: String = stringResource(R.string.chat_placeholder), // 占位符文本
     enabled: Boolean = true, // 是否可用
     modifier: Modifier = Modifier
 ) {
@@ -68,7 +71,7 @@ fun ChatInputBar(
             ) {
                 Icon(
                     imageVector = Icons.Default.Send,
-                    contentDescription = "Send",
+                    contentDescription = stringResource(R.string.send),
                     modifier = Modifier.size(24.dp)
                 )
             }

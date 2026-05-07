@@ -11,6 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+import androidx.compose.ui.res.stringResource
+import com.zeerd.textadventure.R
+
 /**
  * 欢迎卡片组件（作为全屏或大尺寸展示）。
  */
@@ -35,15 +38,16 @@ fun WelcomeScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "📖 Welcome to Text Adventure",
+                text = "📖 " + stringResource(R.string.welcome_message_text),
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Discover new story worlds and adventure with interactive choices. Your decisions shape the narrative in this AI-powered text adventure game.",
+                text = stringResource(R.string.no_story_message),
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center
@@ -65,7 +69,7 @@ fun WelcomeScreen(
                     contentDescription = null
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Start New Story")
+                Text(stringResource(R.string.start_story))
             }
         }
     }

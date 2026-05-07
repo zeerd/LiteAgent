@@ -16,7 +16,7 @@ data class ConversationEntity(
 
     val text: String, // 消息内容
 
-    val role: String, // 发送者角色: "user" (玩家) 或 "ai" (游戏大师) 或 "system" (系统/背景)
+    val role: String, // 发送者角色: "user" (玩家) 或 "assistant" (游戏大师) 或 "system" (系统/背景)
 
     @ColumnInfo(name = "session_id")
     val sessionId: String?, // 会话 ID

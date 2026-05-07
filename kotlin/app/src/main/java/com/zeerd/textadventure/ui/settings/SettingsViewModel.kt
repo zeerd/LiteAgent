@@ -85,12 +85,6 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(isModelInitialized = isInitialized) }
             }
         }
-
-        // 如果已经配置了模型路径，尝试初始化引擎
-        val settings = appSettingsRepository.getSettings()
-        if (settings.selectedModelPath != null) {
-            saveSettings()
-        }
     }
 
     /**

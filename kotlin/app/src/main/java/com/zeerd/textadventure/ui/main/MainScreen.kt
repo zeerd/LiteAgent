@@ -23,6 +23,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.res.stringResource
+import com.zeerd.textadventure.R
 import com.zeerd.textadventure.model.ChatMessage
 import dev.jeziellago.compose.markdowntext.MarkdownText
 import android.util.Log
@@ -54,20 +56,20 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Text Adventure") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     // 设置按钮
                     IconButton(onClick = { onNavigateToSettings() }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
+                            contentDescription = stringResource(R.string.nav_settings)
                         )
                     }
                     // 菜单按钮（跳转到新故事/历史记录）
                     IconButton(onClick = { onNavigateToNewStory() }) {
                         Icon(
                             imageVector = Icons.Default.Menu,
-                            contentDescription = "New Story Menu"
+                            contentDescription = stringResource(R.string.nav_new_story)
                         )
                     }
                 }
@@ -97,14 +99,7 @@ fun MainScreen(
                     // 过滤并处理要显示的消息
                     val displayMessages = uiState.messages.filter { message ->
                         // 不显示系统角色（SYSTEM）的消息，这些通常是内部上下文
-                        if (message.role == ChatMessage.Role.SYSTEM) return@filter false
-
-                        // 过滤掉包含指令注入等内部逻辑的消息
-                        val isInstrumentedPrompt = message.text.contains("find the most relevant skill") ||
-                                                 message.text.contains("1. First, find the most relevant skill") ||
-                                                 message.text.contains("You are an AI assistant")
-
-                        !isInstrumentedPrompt
+                        message.role != ChatMessage.Role.SYSTEM
                     }
 
                     items(displayMessages) { message ->
@@ -147,7 +142,7 @@ fun MainScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "AI is thinking...",
+                                    text = stringResource(R.string.ai_thinking),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -168,7 +163,7 @@ fun MainScreen(
                     value = uiState.userInput ?: "",
                     onValueChange = { viewModel.onInputChange(it) },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("Message...") },
+                    placeholder = { Text(stringResource(R.string.chat_placeholder)) },
                     maxLines = 4,
                     enabled = !uiState.isProcessing
                 )
@@ -180,7 +175,7 @@ fun MainScreen(
                     onClick = { viewModel.sendChatMessage() },
                     enabled = ((uiState.userInput?.isNotEmpty() == true) && !uiState.isProcessing)
                 ) {
-                    Text("Send")
+                    Text(stringResource(R.string.send))
                 }
             }
         }
@@ -209,7 +204,7 @@ fun WelcomeCard() {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "⚡ Text Adventure",
+                text = "⚡ " + stringResource(R.string.app_name),
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 style = MaterialTheme.typography.headlineMedium
             )
@@ -217,7 +212,7 @@ fun WelcomeCard() {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Welcome to Text Adventure - an AI-powered interactive storytelling experience.",
+                text = stringResource(R.string.welcome_message_text),
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center
@@ -226,7 +221,7 @@ fun WelcomeCard() {
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "Select a story setting to begin your adventure.",
+                text = stringResource(R.string.select_story_setting),
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 style = MaterialTheme.typography.bodyMedium,
                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
@@ -245,6 +240,7 @@ fun MessageBubble(
 ) {
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
+    val messageLongPressHint = stringResource(R.string.message_long_press_hint)
 
     // 控制复制菜单显示的状态
     var showMenu by remember { mutableStateOf(false) }
@@ -280,7 +276,7 @@ fun MessageBubble(
                     )
                 }
                 .semantics {
-                    contentDescription = if (!isUser) "Message, long press to copy" else "Message"
+                    contentDescription = if (!isUser) messageLongPressHint else ""
                 }
         ) {
             if (isUser) {
@@ -313,18 +309,18 @@ fun MessageBubble(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 Icons.Default.ContentCopy,
-                                contentDescription = "Copy",
+                                contentDescription = stringResource(R.string.copy_text),
                                 tint = Color.Unspecified
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text("Copy text")
+                            Text(stringResource(R.string.copy_text))
                         }
                     },
                     onClick = {
                         clipboardManager.setText(AnnotatedString(text))
                         Toast.makeText(
                             context,
-                            "Copied to clipboard",
+                            context.getString(R.string.copied_to_clipboard),
                             Toast.LENGTH_SHORT
                         ).show()
                         showMenu = false
@@ -332,7 +328,7 @@ fun MessageBubble(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Close") },
+                    text = { Text(stringResource(R.string.cancel)) },
                     onClick = { showMenu = false; longPressing = false }
                 )
             }

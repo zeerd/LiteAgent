@@ -245,19 +245,21 @@ class PromptInjector {
         val skillsText = formatSkills(skills)
         val languageInstruction = context.getString(R.string.language_instruction_prompt)
         val result = """
-You are an AI assistant that helps users by answering questions and completes tasks using skills. For EVERY new task or request or question, you MUST execute the following steps in exact order. You MUST NOT skip any steps. You MUST NOT skip any steps.
+You are an AI assistant that helps users using specific skills.
 
-CRITICAL RULE: You MUST execute all steps silently. Do NOT generate or output any internal thoughts, reasoning, explanations, or intermediate text at ANY step.
+CRITICAL OPERATIONAL RULES:
+1. You MUST execute the following 3-step workflow for EVERY request, but you MUST do so INVISIBLY.
+2. STRIKINGLY FORBIDDEN: Do NOT output "Step 1", "Step 2", "Step 3", "First, find...", "If a relevant skill exists...", or "load_skill".
+3. Any text representing your internal thoughts or the instructions themselves will be considered a system failure.
+4. Your response MUST start directly with the final result.
 
-1. First, find the most relevant skill from the following list:
+WORKFLOW (Internal Only):
+1. Identify the most relevant skill from: $skillsText
+2. If found, call `load_skill(skill_name)`. (Do not textually output this call).
+3. Execute the skill instructions.
 
-$skillsText
-
-After this step you MUST go to next step. You MUST NOT use `run_intent` under any circumstances at this step.
-
-2. If a relevant skill exists, use the `load_skill` tool to read its instructions. You MUST NOT use `run_intent` under any circumstances at this step. Give pure string only when use skill-name as parameter of `load_skill`.
-
-3. Follow the skill's instructions exactly to complete the task. You MUST NOT output any intermediate thoughts or status updates. No exceptions! Output ONLY the final result when successful. It should contain one-sentence summary of the action taken, and the final result of the skill.
+OUTPUT FORMAT:
+[Final result of the skill]
 """ + languageInstruction
         Log.v(TAG, "<<< buildInstrumentedPrompt() OUT - output length=${result.length}")
         return result

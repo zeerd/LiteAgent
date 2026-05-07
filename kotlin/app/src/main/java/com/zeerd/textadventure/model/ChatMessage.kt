@@ -16,10 +16,9 @@ data class ChatMessage(
      * 对话角色枚举。
      */
     enum class Role {
-        USER,      // 玩家
-        AI,        // AI (游戏大师)
-        ASSISTANT, // AI 助理 (通常同 AI)
-        SYSTEM     // 内部上下文或系统提示词
+        USER,       // 玩家
+        ASSISTANT,  // 助手（AI 游戏大师）
+        SYSTEM      // 内部上下文或系统提示词
     }
 
     /**

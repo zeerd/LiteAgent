@@ -8,6 +8,11 @@
 
     <!-- Main Screen -->
     <string name="chat_placeholder">Type a message...</string>
+    <string name="send">Send</string>
+    <string name="ai_thinking">AI is thinking...</string>
+    <string name="message_long_press_hint">Message, long press to copy</string>
+    <string name="copy_text">Copy text</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
     <string name="welcome_message_text">Welcome to Text Adventure! Start a new story to begin your adventure.</string>
     <string name="no_story_message">Select a story setting from the New Story screen to start playing.</string>
 
@@ -18,12 +23,16 @@
     <string name="language_en">English</string>
     <string name="model_backend_title">Model Backend</string>
     <string name="model_backend_huggingface">HuggingFace</string>
+    <string name="huggingface_subtitle">Open community models</string>
     <string name="model_backend_modelscope">ModelScope</string>
+    <string name="modelscope_subtitle">Alibaba\'s model platform</string>
     <string name="download_models">Download</string>
     <string name="select_model">Select</string>
     <string name="open_folder">Open Folder</string>
     <string name="llm_config_title">LLM Configuration</string>
     <string name="temperature">Temperature</string>
+    <string name="top_p">Top-P</string>
+    <string name="top_k">Top-K</string>
     <string name="max_tokens">Max Tokens</string>
     <string name="system_prompt">System Prompt</string>
     <string name="save_settings">Save Settings</string>
@@ -33,9 +42,16 @@
     <string name="current_model">Current Model: </string>
     <string name="none_selected">None selected</string>
     <string name="web_browser">Web</string>
+    <string name="app_version">Version %s</string>
 
     <!-- New Story Screen -->
     <string name="new_story_title">New Story</string>
+    <string name="create_new_adventure">Create a New Adventure</string>
+    <string name="upload_background_setting_hint">Upload a background setting file to start your personalized story.</string>
+    <string name="select_background_setting">Select Background Setting</string>
+    <string name="view_story_history">View Story History</string>
+    <string name="selected_setting">Selected Setting:</string>
+    <string name="starting">Starting...</string>
     <string name="select_story_setting">Select Story Setting</string>
     <string name="story_setting_fantasy">Fantasy Adventure</string>
     <string name="story_setting_scifi">Sci-Fi Mystery</string>
@@ -66,19 +82,28 @@
 
     <!-- History -->
     <string name="history_title">Story History</string>
+    <string name="selected_count">%d Selected</string>
     <string name="no_history">No story history</string>
+    <string name="no_stories_yet">No stories yet</string>
     <string name="delete_history">Delete History</string>
+    <string name="delete_selected">Delete Selected</string>
+    <string name="selection_mode">Selection Mode</string>
     <string name="delete_confirm">Are you sure you want to delete this story?</string>
+    <string name="created_at">Created: %s</string>
+    <string name="active_at">Active: %s</string>
+    <string name="delete">Delete</string>
 
     <!-- Messages -->
     <string name="model_download_start">Starting model download...</string>
     <string name="model_download_success">Model downloaded successfully!</string>
     <string name="model_download_error">Failed to download model</string>
+    <string name="error_engine_init_failed">Failed to initialize AI engine</string>
+    <string name="error_ai_response_failed">AI failed to respond</string>
     <string name="conversation_started">New conversation started</string>
     <string name="conversation_ended">Story ended</string>
 
     <!-- Prompts -->
-    <string name="default_system_prompt">You are a Text Adventure game master. Create engaging, interactive stories where the user makes choices that affect the narrative.\nThe story should present challenges, opportunities, and choices for the player.\nRespond in-character and offer 2-4 options for the player to choose from.\nKeep the story flowing with interesting plot developments.</string>
     <string name="language_instruction_prompt">Respond in English.</string>
+    <string name="story_instruction_prompt">You are a Text Adventure game master. Create engaging based on the following information, interactive stories where the user makes choices that affect the narrative.\nThe story should present challenges, opportunities, and choices for the player.\nRespond in-character and offer 2-4 options for the player to choose from.\nKeep the story flowing with interesting plot developments.</string>
 
 </resources>

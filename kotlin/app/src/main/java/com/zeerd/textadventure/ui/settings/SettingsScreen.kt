@@ -119,7 +119,7 @@ fun SettingsScreen(
                     RadioButtonRow(
                         selected = uiState.selectedBackend == "huggingface",
                         title = stringResource(R.string.model_backend_huggingface),
-                        subtitle = "Open community models",
+                        subtitle = stringResource(R.string.huggingface_subtitle),
                         onClick = { viewModel.onBackendSelected("huggingface") }
                     )
 
@@ -129,7 +129,7 @@ fun SettingsScreen(
                     RadioButtonRow(
                         selected = uiState.selectedBackend == "modelscope",
                         title = stringResource(R.string.model_backend_modelscope),
-                        subtitle = "Alibaba's model platform",
+                        subtitle = stringResource(R.string.modelscope_subtitle),
                         onClick = { viewModel.onBackendSelected("modelscope") }
                     )
 
@@ -237,7 +237,7 @@ fun SettingsScreen(
                     // Top-P 采样滑动条
                     Column {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Top-P")
+                            Text(stringResource(R.string.top_p))
                             Text(text = "%.2f".format(uiState.topP), style = MaterialTheme.typography.bodySmall)
                         }
                         Slider(
@@ -254,7 +254,7 @@ fun SettingsScreen(
                     // Top-K 采样滑动条
                     Column {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Top-K")
+                            Text(stringResource(R.string.top_k))
                             Text(text = "${uiState.topK}", style = MaterialTheme.typography.bodySmall)
                         }
                         Slider(
@@ -342,6 +342,16 @@ fun SettingsScreen(
                     Text(stringResource(R.string.cancel_settings))
                 }
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // 版本号显示
+            Text(
+                text = stringResource(R.string.app_version, com.zeerd.textadventure.BuildConfig.VERSION_NAME),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
         }
