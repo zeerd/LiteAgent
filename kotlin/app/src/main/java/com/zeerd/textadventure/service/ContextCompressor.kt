@@ -81,6 +81,7 @@ $COMPRESSION_SNAPSHOT_FORMAT
      * 加载压缩提示词。优先从本地文件加载，否则使用硬编码默认值。
      */
     private fun loadCompressionPrompt() {
+        Log.v(TAG, "Loading compression prompt...")
         compressionPrompt = DEFAULT_COMPRESSION_PROMPT
 
         val promptFile = findCompressionPromptFile()
@@ -92,6 +93,7 @@ $COMPRESSION_SNAPSHOT_FORMAT
                 Log.w(TAG, "Failed to load compression prompt file: ${e.message}")
             }
         }
+        Log.v(TAG, "Compression prompt loaded:\n$compressionPrompt")
     }
 
     /**
@@ -113,10 +115,12 @@ $COMPRESSION_SNAPSHOT_FORMAT
     private suspend fun executeCompression(
         fullPrompt: String
     ): String? {
+        Log.v(TAG, "Executing compression with prompt:\n$fullPrompt")
         return try {
             val config = EngineConfig(
                 modelPath = modelPath,
-                backend = backend
+                backend = backend,
+                maxNumTokens = if (maxNumTokens * 2 <= 32768) maxNumTokens * 2 else 32768, // 预留足够的 Token 数给压缩任务
             )
 
             engine?.close()
@@ -139,6 +143,8 @@ $COMPRESSION_SNAPSHOT_FORMAT
         } catch (e: Exception) {
             Log.e(TAG, "Compression failed: ${e.message}", e)
             null
+        } finally {
+            Log.v(TAG, "Compression execution completed")
         }
     }
 
@@ -179,8 +185,9 @@ Now output the world state snapshot:
      * 核心压缩方法：将对话历史转换为快照字符串。
      */
     suspend fun compressHistory(
-        historyMessages: List<Message>
+        historyMessages: List<ChatMessage>
     ): String? {
+        Log.v(TAG, "Starting compression of history with ${historyMessages.size} messages")
         if (historyMessages.isEmpty() || historyMessages.size < 2) {
             Log.w(TAG, "History too short for compression")
             return null
@@ -197,7 +204,9 @@ Now output the world state snapshot:
         }
 
         val fullPrompt = buildCompressPrompt(historyText)
-        return executeCompression(fullPrompt)
+        val result = executeCompression(fullPrompt)
+        Log.v(TAG, "Compression result:\n$result")
+        return result
     }
 
     /**
@@ -206,8 +215,9 @@ Now output the world state snapshot:
     fun compressAndRetry(
         compressedHistory: String,
         systemPrompt: String,
-        recentMessages: List<Message> = emptyList()
+        recentMessages: List<ChatMessage> = emptyList()
     ): List<Pair<String, String>> {
+        Log.v(TAG, "Building compressed messages with system prompt and recent messages")
         val messages = mutableListOf<Pair<String, String>>()
 
         try {
@@ -233,8 +243,10 @@ Now output the world state snapshot:
 
             return messages
         } catch (e: Exception) {
-            Log.e(TAG, "Error building compressed messages: ${e.message}")
+            Log.e(TAG, "Error building compressed messages: ${e.message}", e)
             return emptyList()
+        } finally {
+            Log.v(TAG, "Compressed messages built:\n${messages.joinToString("\n") { "${it.first}: ${it.second}" }}")
         }
     }
 
@@ -245,12 +257,4 @@ Now output the world state snapshot:
         engine?.close()
         engine = null
     }
-
-    /**
-     * 内部消息数据类。
-     */
-    data class Message(
-        val role: String,
-        val content: String
-    )
 }

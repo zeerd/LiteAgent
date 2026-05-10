@@ -160,7 +160,7 @@ class MainViewModel @Inject constructor(
                 conversationRepository.getMessagesBySessionSync(sessionId)
             }
             val serviceMessages = messages.map { entity ->
-                com.zeerd.textadventure.service.ContextCompressor.Message(
+                com.zeerd.textadventure.service.ChatMessage(
                     role = entity.role, content = entity.text
                 )
             }

@@ -82,8 +82,8 @@ class LiteRtLmService @Inject constructor(
     }
 
     // 历史消息追踪，用于压缩逻辑
-    private val _historyMessages = mutableListOf<ContextCompressor.Message>()
-    val historyMessages: List<ContextCompressor.Message> = _historyMessages.toList()
+    private val _historyMessages = mutableListOf<ChatMessage>()
+    val historyMessages: List<ChatMessage> = _historyMessages.toList()
 
     // 配置参数
     private var _systemPrompt = ""
@@ -321,14 +321,18 @@ class LiteRtLmService @Inject constructor(
     /**
      * 检查是否需要触发上下文压缩。
      */
-    private fun shouldCompress(lastResponse: String = ""): Pair<Boolean, Int> {
+    internal fun shouldCompress(lastResponse: String = ""): Pair<Boolean, Int> {
+        Log.v(TAG, "Checking if compression is needed with ${_historyMessages.size} history messages and lastResponse length ${lastResponse.length}")
         if (_historyMessages.isEmpty() || _maxTokens <= 0) {
             return false to 0
         }
 
         val totalContentLength = _historyMessages.sumOf { it.content.length }
         val threshold = (_maxTokens * _compressionThreshold).toInt()
-        val actualLength = totalContentLength / 2
+
+        // 改进的 Token 估算：对中文更保守。
+        // 假设 1 个字符平均对应 0.8 到 1.2 个 token，这里取 1.0 作为保守估算。
+        val actualLength = totalContentLength
 
         // 条件 1: 上下文长度超过限制
         val lengthTrigger = actualLength > threshold
@@ -338,6 +342,7 @@ class LiteRtLmService @Inject constructor(
 
         val shouldCompress = lengthTrigger || shortResponseTrigger
 
+        Log.v(TAG, "Compression check result: shouldCompress=$shouldCompress, totalContentLength=$totalContentLength")
         return shouldCompress to totalContentLength
     }
 
@@ -361,8 +366,8 @@ class LiteRtLmService @Inject constructor(
         _isProcessing.value = true
         _currentMessage.value = ""
 
-        // 将用户消息存入历史记录
-        _historyMessages.add(ContextCompressor.Message("user", userMessage))
+        // 将 user message 存入历史记录
+        _historyMessages.add(ChatMessage("user", userMessage))
 
         // 发送前检查是否需要压缩
         val (initialNeedCompress, _) = shouldCompress()
@@ -385,7 +390,7 @@ class LiteRtLmService @Inject constructor(
             var responseText = responseBuilder.toString()
 
             // 将 AI 响应存入历史记录
-            _historyMessages.add(ContextCompressor.Message("assistant", responseText))
+            _historyMessages.add(ChatMessage("assistant", responseText))
 
             // 发送后检查是否因为该次响应而触发压缩
             val (postNeedCompress, _) = shouldCompress(responseText)
@@ -400,7 +405,7 @@ class LiteRtLmService @Inject constructor(
                 if (_historyMessages.isNotEmpty() && _historyMessages.last().role == "assistant") {
                     _historyMessages.removeAt(_historyMessages.size - 1)
                 }
-                _historyMessages.add(ContextCompressor.Message("assistant", responseText))
+                _historyMessages.add(ChatMessage("assistant", responseText))
             }
 
             Log.v(TAG, "<<< chat() completed with response:\n$responseText")
@@ -460,7 +465,7 @@ class LiteRtLmService @Inject constructor(
     /**
      * 从消息列表恢复对话历史。
      */
-    fun restoreHistory(messages: List<ContextCompressor.Message>) {
+    fun restoreHistory(messages: List<ChatMessage>) {
         Log.v(TAG, ">>> restoreHistory() called with ${messages.size} messages")
         try {
             _historyMessages.clear()

@@ -14,12 +14,12 @@ val gitCommitId = try {
 
 android {
     namespace = "com.zeerd.textadventure"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.zeerd.textadventure"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0-$gitCommitId"
 
@@ -84,6 +84,9 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material:material-icons-extended")
 
+    // AppCompat for language switching
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.8.0")
 
@@ -123,6 +126,7 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.google.truth:truth:1.4.2")
     testImplementation("org.robolectric:robolectric:4.12")
     testImplementation("io.mockk:mockk:1.13.10")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")

@@ -12,6 +12,8 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import com.zeerd.textadventure.data.local.AppSettings
 import com.zeerd.textadventure.R
 import com.zeerd.textadventure.data.local.AppSettingsRepository
@@ -243,14 +245,8 @@ class SettingsViewModel @Inject constructor(
      * 更新应用程序的本地化语言。
      */
     private fun updateLocale(language: String) {
-        val locale = if (language == "zh") java.util.Locale.CHINESE else java.util.Locale.ENGLISH
-        java.util.Locale.setDefault(locale)
-        val config = context.resources.configuration
-        config.setLocale(locale)
-        context.createConfigurationContext(config)
-
-        @Suppress("DEPRECATION")
-        context.resources.updateConfiguration(config, context.resources.displayMetrics)
+        val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags(language)
+        AppCompatDelegate.setApplicationLocales(appLocale)
     }
 
     fun cancelSettings() {

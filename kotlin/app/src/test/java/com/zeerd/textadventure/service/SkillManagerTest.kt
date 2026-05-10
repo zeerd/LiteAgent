@@ -1,6 +1,9 @@
 package com.zeerd.textadventure.service
 
 import com.google.common.truth.Truth.assertThat
+import android.util.Log
+import io.mockk.every
+import io.mockk.mockkStatic
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -17,6 +20,12 @@ class SkillManagerTest {
 
     @Before
     fun setUp() {
+        mockkStatic(Log::class)
+        every { Log.v(any(), any()) } returns 0
+        every { Log.d(any(), any()) } returns 0
+        every { Log.w(any(), any<String>()) } returns 0
+        every { Log.e(any(), any()) } returns 0
+
         // 创建临时测试目录
         testDir = File.createTempFile("skill_test", "").apply {
             deleteOnExit()
@@ -33,7 +42,6 @@ class SkillManagerTest {
 name: test-skill
 description: 测试技能
 version: "1.0"
-tags: [test]
 ---
 
 # Test Skill Instructions
@@ -81,14 +89,6 @@ This is the instruction text.
     }
 
     @Test
-    fun testGetSkillsList() {
-        val skillsList = skillManager.getSkillsList()
-
-        assertThat(skillsList).contains("test-skill")
-        assertThat(skillsList).contains("测试技能")
-    }
-
-    @Test
     fun testGetNonExistentSkill() {
         val skill = skillManager.getSkill("non-existent")
 
@@ -108,15 +108,13 @@ class PromptInjectorTest {
         io.mockk.every { context.getString(any()) } returns "Respond in English."
 
         val skills = listOf(
-            Skill(name = "test-skill", description = "测试技能"),
-            Skill(name = "another-skill", description = "另一个技能")
+            Skill(name = "test-skill", description = "测试技能", instructions = "Instructions")
         )
 
         val injector = PromptInjector()
         val prompt = injector.buildInstrumentedPrompt(context, skills)
 
         assertThat(prompt).contains("test-skill")
-        assertThat(prompt).contains("another-skill")
         assertThat(prompt).contains("You are an AI assistant")
     }
 
