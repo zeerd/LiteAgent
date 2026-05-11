@@ -237,13 +237,11 @@ class PromptInjector {
      * 构建包含技能描述的系统提示词。
      */
     fun buildInstrumentedPrompt(
-        context: android.content.Context,
         skills: List<Skill>,
         includeInstructions: Boolean = false
     ): String {
         Log.v(TAG, ">>> buildInstrumentedPrompt() IN - skills count=${skills.size}")
         val skillsText = formatSkills(skills)
-        val languageInstruction = context.getString(R.string.language_instruction_prompt)
         val result = """
 You are an AI assistant that helps users using specific skills.
 
@@ -260,7 +258,7 @@ WORKFLOW (Internal Only):
 
 OUTPUT FORMAT:
 [Final result of the skill]
-""" + languageInstruction
+"""
         Log.v(TAG, "<<< buildInstrumentedPrompt() OUT - output length=${result.length}")
         return result
     }

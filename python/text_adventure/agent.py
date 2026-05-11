@@ -176,7 +176,7 @@ class text_adventure:
         # 构建 system prompt
         self.system_prompt = self._build_system_prompt(
             use_minimal_prompt
-        ) + '\n使用中文与用户交流。'
+        ) + '\n使用中文与用户交流。\n如果你完成了回答，请在最后加上标记 [EOF]'
         logger.info("✅ 构建 system prompt 完成:\n%s", self.system_prompt)
 
         # 创建工具列表 - 使用闭包传递 skill_manager
@@ -409,6 +409,7 @@ class text_adventure:
                     tools=self.tools, messages=messages
                 ) as conv:
                     response = conv.send_message(user_message)
+                    logger.debug("raw-response=%s", response)
                     # 提取纯文本内容
                     if isinstance(response, dict):
                         content = response.get("content", "")
@@ -419,6 +420,13 @@ class text_adventure:
                                 if isinstance(item, dict) else str(item)
                                 for item in content
                             ])
+                        if content.endswith('[EOF]'):
+                            logger.debug("ends normally.")
+                            content = content[:-5]
+                        else:
+                            logger.info("ends by cutted.")
+                            need_compression = True
+
 
                         # 检查 response 是否非常短（< 5 字符）
                         is_short_response = len(content) < 5

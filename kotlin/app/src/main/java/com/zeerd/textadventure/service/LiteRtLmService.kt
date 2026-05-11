@@ -43,6 +43,7 @@ class LiteRtLmService @Inject constructor(
         private const val DEFAULT_MAX_TOKENS = 4096
         private const val DEFAULT_COMPRESSION_THRESHOLD = 0.75f
         private const val DEFAULT_TEMPERATURE = 0.7f
+        private const val EOF_MARKER = "[EOF]"
     }
 
     // 核心引擎组件
@@ -201,7 +202,11 @@ class LiteRtLmService @Inject constructor(
                 conversation = null
                 compressor = null
 
-                _maxTokens = engineConfig.maxNumTokens ?: DEFAULT_MAX_TOKENS
+                // Reduce maxNumTokens by 2k for the engine to avoid overflow
+                val adjustedMaxTokens = (engineConfig.maxNumTokens ?: DEFAULT_MAX_TOKENS) - 2048
+                val adjustedConfig = engineConfig.copy(maxNumTokens = adjustedMaxTokens)
+
+                _maxTokens = adjustedMaxTokens
                 _compressionThreshold = compressionThreshold
                 _temperature = temperature
                 _skillDir = skillDir
@@ -209,7 +214,7 @@ class LiteRtLmService @Inject constructor(
 
                 Log.d(TAG, "Step 2: Creating and initializing Engine...")
                 // 创建并初始化引擎
-                val newEngine = Engine(engineConfig)
+                val newEngine = Engine(adjustedConfig)
                 newEngine.initialize()
 
                 if (!newEngine.isInitialized()) {
@@ -219,7 +224,7 @@ class LiteRtLmService @Inject constructor(
                 }
 
                 engine = newEngine
-                currentConfig = engineConfig
+                currentConfig = adjustedConfig
 
                 Log.d(TAG, "Step 3: Loading skills from $skillDir...")
                 // 初始化技能管理器
@@ -244,7 +249,15 @@ class LiteRtLmService @Inject constructor(
                 // 注入技能说明到系统提示词
                 val promptInjector = PromptInjector()
                 val skills = manager.getAllSkills()
-                _systemPrompt = promptInjector.buildInstrumentedPrompt(context, skills)
+                _systemPrompt = promptInjector.buildInstrumentedPrompt(skills)
+
+                // 添加 [EOF] 标记指令，用于判断正常完成还是被截断
+                _systemPrompt += "\nPlease append the marker $EOF_MARKER at the end of your response if you have finished."
+
+                // Append language instruction
+                val languageInstruction = context.getString(R.string.language_instruction_prompt)
+                _systemPrompt += "\n$languageInstruction"
+
                 Log.v(TAG, "Constructed system prompt:\n$_systemPrompt")
 
                 Log.d(TAG, "Step 6: Creating conversation...")
@@ -389,14 +402,44 @@ class LiteRtLmService @Inject constructor(
 
             var responseText = responseBuilder.toString()
 
+            // 检查 [EOF] 标记以判断是否正常完成
+            // 正常完成：响应以 [EOF] 结尾，删除标记并正常存储
+            // 异常完成：响应过短且无 [EOF] 标记，可能表明上下文被截断
+            var completedNormally = responseText.endsWith(EOF_MARKER)
+            if (completedNormally) {
+                Log.d(TAG, "Normal completion detected $EOF_MARKER.")
+                responseText = responseText.removeSuffix(EOF_MARKER)
+            } else if (responseText.isEmpty()) {
+                Log.w(TAG, "Empty response after removing EOF, possible context cutoff.")
+                completedNormally = false
+            } else if (responseText.length < 10) {
+                Log.w(TAG, "Short response (${responseText.length} chars) without $EOF_MARKER, suggesting cut context.")
+                completedNormally = false
+            } else {
+                Log.w(TAG, "No $EOF_MARKER marker (${responseText.length} chars), response may be incomplete.")
+            }
+
+            // 根据完成情况决定是否触发压缩
+            var shouldTriggerCompression = false
+            if (!completedNormally) {
+                Log.d(TAG, "Compression triggered by abnormal response.")
+                shouldTriggerCompression = true
+            }
+
             // 将 AI 响应存入历史记录
             _historyMessages.add(ChatMessage("assistant", responseText))
 
             // 发送后检查是否因为该次响应而触发压缩
             val (postNeedCompress, _) = shouldCompress(responseText)
 
-            if (postNeedCompress && !initialNeedCompress) {
-                Log.d(TAG, "🔄 Response triggered late compression. Retrying chat...")
+            if (shouldTriggerCompression || (postNeedCompress && !initialNeedCompress)) {
+                Log.d(TAG, "Compression triggered (abnormal response or threshold exceeded). Retrying chat...")
+                if (!completedNormally) {
+                    // 如果是异常完成，移除之前存储的空消息
+                    if (_historyMessages.isNotEmpty() && _historyMessages.last().role == "assistant") {
+                        _historyMessages.removeAt(_historyMessages.size - 1)
+                    }
+                }
                 responseBuilder.clear()
                 performCompressionAndChat(userMessage, responseBuilder)
                 responseText = responseBuilder.toString()
@@ -569,7 +612,7 @@ class LiteRtLmService @Inject constructor(
         return EngineConfig(
             modelPath = getOrCreateModelPath(),
             backend = Backend.CPU(),
-            maxNumTokens = 32768
+            maxNumTokens = 30720 // 32768 - 2048
         )
     }
 
