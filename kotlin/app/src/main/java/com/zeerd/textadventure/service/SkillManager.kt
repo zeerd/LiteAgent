@@ -238,7 +238,6 @@ class PromptInjector {
      */
     fun buildInstrumentedPrompt(
         skills: List<Skill>,
-        includeInstructions: Boolean = false
     ): String {
         Log.v(TAG, ">>> buildInstrumentedPrompt() IN - skills count=${skills.size}")
         val skillsText = formatSkills(skills)

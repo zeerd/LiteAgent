@@ -7,6 +7,9 @@ import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.SamplerConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import kotlin.coroutines.resume
@@ -81,19 +84,23 @@ $COMPRESSION_SNAPSHOT_FORMAT
      * 加载压缩提示词。优先从本地文件加载，否则使用硬编码默认值。
      */
     private fun loadCompressionPrompt() {
-        Log.v(TAG, "Loading compression prompt...")
+        Log.v(TAG, ">>> loadCompressionPrompt() IN")
         compressionPrompt = DEFAULT_COMPRESSION_PROMPT
 
         val promptFile = findCompressionPromptFile()
         if (promptFile != null && promptFile.exists()) {
             try {
+                Log.d(TAG, "Found compression prompt file at: ${promptFile.absolutePath}")
                 compressionPrompt = promptFile.readText()
-                Log.d(TAG, "✅ Loaded compression prompt from file")
+                Log.d(TAG, "✅ Loaded compression prompt from file (Length: ${compressionPrompt.length})")
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to load compression prompt file: ${e.message}")
             }
+        } else {
+            Log.d(TAG, "Using default hardcoded compression prompt")
         }
         Log.v(TAG, "Compression prompt loaded:\n$compressionPrompt")
+        Log.v(TAG, "<<< loadCompressionPrompt() OUT")
     }
 
     /**
@@ -113,50 +120,82 @@ $COMPRESSION_SNAPSHOT_FORMAT
      * 运行 LLM 引擎执行压缩任务。
      */
     private suspend fun executeCompression(
-        fullPrompt: String
-    ): String? {
-        Log.v(TAG, "Executing compression with prompt:\n$fullPrompt")
-        return try {
+        systemPrompt: String,
+        userPrompt: String
+    ): String? = withContext(Dispatchers.Default) {
+        Log.v(TAG, ">>> executeCompression() IN")
+        Log.d(TAG, "Starting compression execution with model: $modelPath")
+        try {
+            val adjustedMaxTokens = if (maxNumTokens * 2 <= 32768) maxNumTokens * 2 else 32768
             val config = EngineConfig(
                 modelPath = modelPath,
                 backend = backend,
-                maxNumTokens = if (maxNumTokens * 2 <= 32768) maxNumTokens * 2 else 32768, // 预留足够的 Token 数给压缩任务
+                maxNumTokens = adjustedMaxTokens,
             )
+            Log.d(TAG, "Engine configuration: backend=$backend, maxNumTokens=$adjustedMaxTokens")
 
+            Log.d(TAG, "Step 1: Re-initializing engine for compression...")
             engine?.close()
             engine = Engine(config)
             engine?.initialize()
 
+            if (engine?.isInitialized() != true) {
+                Log.e(TAG, "❌ Compression Engine failed to initialize")
+                return@withContext null
+            }
+
             val convConfig = ConversationConfig(
-                systemInstruction = Contents.of(fullPrompt)
+                systemInstruction = Contents.of(systemPrompt),
+                samplerConfig = SamplerConfig(
+                    temperature = 0.3, // 压缩任务使用较低温度以保证稳定性
+                    topK = 40,
+                    topP = 0.95
+                )
             )
+            Log.d(TAG, "Step 2: Creating conversation for compression task")
 
             var conversation: Conversation? = null
             try {
                 conversation = engine?.createConversation(convConfig)
-                val response = conversation?.sendMessage("")
 
-                extractTextResponse(response)
+                Log.i(TAG, ">>> SENDING COMPRESSION REQUEST TO LLM <<<")
+                Log.d(TAG, "SYSTEM_INSTRUCTION (Compression):\n$systemPrompt")
+                Log.d(TAG, "USER_PROMPT (History to compress):\n$userPrompt")
+
+                val response = conversation?.sendMessage(userPrompt)
+
+                val result = extractTextResponse(response)
+                Log.i(TAG, ">>> RECEIVED COMPRESSION RESPONSE FROM LLM <<<")
+                Log.v(TAG, "Raw Response: $result")
+                result
             } finally {
                 conversation?.close()
+                Log.d(TAG, "Compression conversation closed")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Compression failed: ${e.message}", e)
+            Log.e(TAG, "❌ Compression failed with error: ${e.message}", e)
             null
         } finally {
-            Log.v(TAG, "Compression execution completed")
+            Log.v(TAG, "<<< executeCompression() OUT")
         }
     }
 
     /**
-     * 构建最终发送给模型的压缩任务提示词。
+     * 构建压缩任务的系统提示词。
      */
-    private fun buildCompressPrompt(historyText: String): String {
+    private fun buildSystemPrompt(): String {
         return """
 You are a text compression task executor, specialized in compressing conversation history into a compact world state snapshot.
 
 ${compressionPrompt}
+""".trimIndent()
+    }
 
+    /**
+     * 构建压缩任务的用户输入（包含待压缩的历史）。
+     */
+    private fun buildUserPrompt(historyText: String): String {
+        return """
 === Raw Conversation History ===
 
 $historyText
@@ -171,7 +210,7 @@ When compressing, strictly follow:
 3. Direct output of the compressed snapshot only, no explanation, no additional content
 
 Now output the world state snapshot:
-"""
+""".trimIndent()
     }
 
     private fun extractTextResponse(response: Any?): String {
@@ -187,9 +226,11 @@ Now output the world state snapshot:
     suspend fun compressHistory(
         historyMessages: List<ChatMessage>
     ): String? {
-        Log.v(TAG, "Starting compression of history with ${historyMessages.size} messages")
+        Log.v(TAG, ">>> compressHistory() IN")
+        Log.i(TAG, "Starting compression of history with ${historyMessages.size} messages")
         if (historyMessages.isEmpty() || historyMessages.size < 2) {
-            Log.w(TAG, "History too short for compression")
+            Log.w(TAG, "⚠️ History too short for compression (count: ${historyMessages.size})")
+            Log.v(TAG, "<<< compressHistory() OUT (null)")
             return null
         }
 
@@ -202,52 +243,93 @@ Now output the world state snapshot:
             }
             "$roleLabel: ${msg.content}"
         }
+        Log.d(TAG, "Formatted history text length: ${historyText.length} characters")
 
-        val fullPrompt = buildCompressPrompt(historyText)
-        val result = executeCompression(fullPrompt)
-        Log.v(TAG, "Compression result:\n$result")
+        val systemPrompt = buildSystemPrompt()
+        val userPrompt = buildUserPrompt(historyText)
+
+        Log.d(TAG, "Executing compression engine...")
+        val result = executeCompression(systemPrompt, userPrompt)
+
+        if (result != null && result.isNotEmpty()) {
+            Log.i(TAG, "✅ Compression successful. Compressed size: ${result.length} vs Original size: ${historyText.length}")
+        } else {
+            Log.e(TAG, "❌ Compression failed or returned empty result")
+        }
+
+        Log.v(TAG, "<<< compressHistory() OUT")
         return result
     }
 
     /**
      * 辅助方法：基于压缩后的快照构建新的消息序列。
      */
-    fun compressAndRetry(
-        compressedHistory: String,
+    fun buildCompressedSequence(
         systemPrompt: String,
+        compressedHistory: String,
+        prefixMessages: List<ChatMessage> = emptyList(),
         recentMessages: List<ChatMessage> = emptyList()
     ): List<Pair<String, String>> {
-        Log.v(TAG, "Building compressed messages with system prompt and recent messages")
+        Log.v(TAG, ">>> buildCompressedSequence() IN")
+        Log.i(TAG, "Building compressed messages sequence. Prefix: ${prefixMessages.size}, Recent: ${recentMessages.size}")
         val messages = mutableListOf<Pair<String, String>>()
 
         try {
-            // [系统提示词]
+            // 1. [系统提示词]
             messages.add("system" to systemPrompt)
+            Log.d(TAG, "Added system prompt")
 
-            // [压缩后的世界状态快照] (作为第一个用户输入)
-            messages.add("user" to compressedHistory)
-
-            // [模型确认已理解状态]
-            messages.add("assistant" to "Acknowledged.")
-
-            // [（可选）添加最近的几轮对话以保持语义连贯]
-            val recent = if (recentMessages.size >= 4) {
-                recentMessages.takeLast(4)
-            } else {
-                recentMessages
-            }
-
-            recent.forEach { msg ->
+            // 2. [保留的前缀/背景消息]
+            prefixMessages.forEach { msg ->
                 messages.add(msg.role to msg.content)
             }
+            if (prefixMessages.isNotEmpty()) {
+                Log.d(TAG, "Added ${prefixMessages.size} prefix messages")
+            }
 
+            // 3. [压缩后的世界状态快照] (作为用户输入)
+            messages.add("user" to "Context Snapshot of previous events:\n\n$compressedHistory")
+            Log.d(TAG, "Added compressed world state snapshot")
+
+            // 4. [模型确认已理解状态]
+            messages.add("assistant" to "Acknowledged.")
+            Log.d(TAG, "Added assistant acknowledgement")
+
+            // 5. [保留的最近对话以保持语义连贯]
+            recentMessages.forEach { msg ->
+                messages.add(msg.role to msg.content)
+            }
+            if (recentMessages.isNotEmpty()) {
+                Log.d(TAG, "Added ${recentMessages.size} recent messages")
+            }
+
+            Log.d(TAG, "Final message sequence count: ${messages.size}")
             return messages
         } catch (e: Exception) {
-            Log.e(TAG, "Error building compressed messages: ${e.message}", e)
+            Log.e(TAG, "❌ Error building compressed messages: ${e.message}", e)
             return emptyList()
         } finally {
-            Log.v(TAG, "Compressed messages built:\n${messages.joinToString("\n") { "${it.first}: ${it.second}" }}")
+            Log.v(TAG, "<<< buildCompressedSequence() OUT")
         }
+    }
+
+    /**
+     * 将消息列表分为三部分：前缀（保留）、待压缩、最近（保留）。
+     * 默认保留前 2 条作为前缀（背景），最后 2 条作为最近上下文。
+     */
+    fun partitionMessages(
+        messages: List<ChatMessage>,
+        prefixCount: Int = 2,
+        recentCount: Int = 2
+    ): Triple<List<ChatMessage>, List<ChatMessage>, List<ChatMessage>> {
+        if (messages.size <= prefixCount + recentCount) {
+            return Triple(messages, emptyList(), emptyList())
+        }
+        val prefix = messages.take(prefixCount)
+        val remaining = messages.drop(prefixCount)
+        val recent = remaining.takeLast(recentCount)
+        val toCompress = remaining.dropLast(recentCount)
+        return Triple(prefix, toCompress, recent)
     }
 
     /**

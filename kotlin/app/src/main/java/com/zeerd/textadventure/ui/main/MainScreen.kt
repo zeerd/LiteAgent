@@ -15,7 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
+import android.content.ClipData
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -30,6 +32,7 @@ import dev.jeziellago.compose.markdowntext.MarkdownText
 import android.util.Log
 import android.widget.Toast
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * 游戏主界面，包含聊天消息列表和输入框。
@@ -238,8 +241,9 @@ fun MessageBubble(
     text: String,
     isUser: Boolean
 ) {
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val messageLongPressHint = stringResource(R.string.message_long_press_hint)
 
     // 控制复制菜单显示的状态
@@ -317,7 +321,10 @@ fun MessageBubble(
                         }
                     },
                     onClick = {
-                        clipboardManager.setText(AnnotatedString(text))
+                        scope.launch {
+                            val clipData = ClipData.newPlainText("chat message", text)
+                            clipboard.setClipEntry(ClipEntry(clipData))
+                        }
                         Toast.makeText(
                             context,
                             context.getString(R.string.copied_to_clipboard),

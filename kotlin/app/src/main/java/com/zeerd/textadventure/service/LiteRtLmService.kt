@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -34,7 +35,7 @@ import javax.inject.Singleton
 class LiteRtLmService @Inject constructor(
     private val context: Context
 ) {
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     companion object {
         private const val TAG = "TextAdventure-LiteRtLmService"
@@ -43,7 +44,7 @@ class LiteRtLmService @Inject constructor(
         private const val DEFAULT_MAX_TOKENS = 4096
         private const val DEFAULT_COMPRESSION_THRESHOLD = 0.75f
         private const val DEFAULT_TEMPERATURE = 0.7f
-        private const val EOF_MARKER = "[EOF]"
+        private const val EOS_MARKER = "[EOS]"
     }
 
     // 核心引擎组件
@@ -101,7 +102,9 @@ class LiteRtLmService @Inject constructor(
         get() = _systemPrompt
         set(value) {
             _systemPrompt = value
-            resetConversation()
+            serviceScope.launch {
+                resetConversation()
+            }
         }
 
     var maxTokens: Int
@@ -252,7 +255,7 @@ class LiteRtLmService @Inject constructor(
                 _systemPrompt = promptInjector.buildInstrumentedPrompt(skills)
 
                 // 添加 [EOF] 标记指令，用于判断正常完成还是被截断
-                _systemPrompt += "\nPlease append the marker $EOF_MARKER at the end of your response if you have finished."
+                _systemPrompt += "\nPlease append the marker $EOS_MARKER at the end of your response if you have finished."
 
                 // Append language instruction
                 val languageInstruction = context.getString(R.string.language_instruction_prompt)
@@ -335,8 +338,9 @@ class LiteRtLmService @Inject constructor(
      * 检查是否需要触发上下文压缩。
      */
     internal fun shouldCompress(lastResponse: String = ""): Pair<Boolean, Int> {
-        Log.v(TAG, "Checking if compression is needed with ${_historyMessages.size} history messages and lastResponse length ${lastResponse.length}")
+        Log.v(TAG, ">>> shouldCompress() IN (lastResponse length: ${lastResponse.length})")
         if (_historyMessages.isEmpty() || _maxTokens <= 0) {
+            Log.v(TAG, "<<< shouldCompress() OUT - History empty or maxTokens <= 0")
             return false to 0
         }
 
@@ -355,7 +359,8 @@ class LiteRtLmService @Inject constructor(
 
         val shouldCompress = lengthTrigger || shortResponseTrigger
 
-        Log.v(TAG, "Compression check result: shouldCompress=$shouldCompress, totalContentLength=$totalContentLength")
+        Log.d(TAG, "Compression check: actualLength=$actualLength, threshold=$threshold, lengthTrigger=$lengthTrigger, shortResponseTrigger=$shortResponseTrigger")
+        Log.v(TAG, "<<< shouldCompress() OUT - result=$shouldCompress")
         return shouldCompress to totalContentLength
     }
 
@@ -375,9 +380,12 @@ class LiteRtLmService @Inject constructor(
     /**
      * 发送用户消息并获取 AI 响应。
      */
-    suspend fun chat(userMessage: String): String {
+    suspend fun chat(userMessage: String): String = withContext(Dispatchers.Default) {
         _isProcessing.value = true
         _currentMessage.value = ""
+
+        // 记录本轮对话前的历史快照，确保压缩时不包含当前这一轮的消息
+        val historyBeforeThisTurn = _historyMessages.toList()
 
         // 将 user message 存入历史记录
         _historyMessages.add(ChatMessage("user", userMessage))
@@ -385,18 +393,19 @@ class LiteRtLmService @Inject constructor(
         // 发送前检查是否需要压缩
         val (initialNeedCompress, _) = shouldCompress()
 
-        return try {
+        try {
             Log.v(TAG, ">>> chat() called with userMessage:\n$userMessage")
             val responseBuilder = StringBuilder()
 
             if (initialNeedCompress) {
-                performCompressionAndChat(userMessage, responseBuilder)
+                performCompressionAndChat(historyBeforeThisTurn, userMessage, responseBuilder)
             } else {
                 // 普通对话流
                 conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
                     // Log.v(TAG, "Received partial response: $partialResponse")
-                    _currentMessage.value += partialResponse.toString()
-                    responseBuilder.append(partialResponse.toString())
+                    val partial = partialResponse.toString()
+                    _currentMessage.update { it + partial }
+                    responseBuilder.append(partial)
                 }
             }
 
@@ -405,18 +414,18 @@ class LiteRtLmService @Inject constructor(
             // 检查 [EOF] 标记以判断是否正常完成
             // 正常完成：响应以 [EOF] 结尾，删除标记并正常存储
             // 异常完成：响应过短且无 [EOF] 标记，可能表明上下文被截断
-            var completedNormally = responseText.endsWith(EOF_MARKER)
+            var completedNormally = responseText.endsWith(EOS_MARKER)
             if (completedNormally) {
-                Log.d(TAG, "Normal completion detected $EOF_MARKER.")
-                responseText = responseText.removeSuffix(EOF_MARKER)
+                Log.d(TAG, "Normal completion detected $EOS_MARKER.")
+                responseText = responseText.removeSuffix(EOS_MARKER)
             } else if (responseText.isEmpty()) {
                 Log.w(TAG, "Empty response after removing EOF, possible context cutoff.")
                 completedNormally = false
             } else if (responseText.length < 10) {
-                Log.w(TAG, "Short response (${responseText.length} chars) without $EOF_MARKER, suggesting cut context.")
+                Log.w(TAG, "Short response (${responseText.length} chars) without $EOS_MARKER, suggesting cut context.")
                 completedNormally = false
             } else {
-                Log.w(TAG, "No $EOF_MARKER marker (${responseText.length} chars), response may be incomplete.")
+                Log.w(TAG, "No $EOS_MARKER marker (${responseText.length} chars), response may be incomplete.")
             }
 
             // 根据完成情况决定是否触发压缩
@@ -434,14 +443,15 @@ class LiteRtLmService @Inject constructor(
 
             if (shouldTriggerCompression || (postNeedCompress && !initialNeedCompress)) {
                 Log.d(TAG, "Compression triggered (abnormal response or threshold exceeded). Retrying chat...")
-                if (!completedNormally) {
-                    // 如果是异常完成，移除之前存储的空消息
-                    if (_historyMessages.isNotEmpty() && _historyMessages.last().role == "assistant") {
-                        _historyMessages.removeAt(_historyMessages.size - 1)
-                    }
+
+                // 移除这次失败或触发阈值的 assistant 响应，准备重新生成
+                if (_historyMessages.isNotEmpty() && _historyMessages.last().role == "assistant") {
+                    _historyMessages.removeAt(_historyMessages.size - 1)
                 }
+
                 responseBuilder.clear()
-                performCompressionAndChat(userMessage, responseBuilder)
+                // 使用本轮之前的历史快照进行压缩，确保不包含当前 user 和刚移除的 assistant
+                performCompressionAndChat(historyBeforeThisTurn, userMessage, responseBuilder)
                 responseText = responseBuilder.toString()
 
                 // 更新历史记录中的最后一条 AI 消息
@@ -466,49 +476,73 @@ class LiteRtLmService @Inject constructor(
     /**
      * 执行压缩流程并重新发送对话。
      */
-    private suspend fun performCompressionAndChat(userMessage: String, responseBuilder: StringBuilder) {
-        Log.v(TAG, ">>> performCompressionAndChat() called with userMessage:\n$userMessage")
-        val compressedHistory = compressor?.compressHistory(_historyMessages)
+    private suspend fun performCompressionAndChat(
+        historyToProcess: List<ChatMessage>,
+        userMessage: String,
+        responseBuilder: StringBuilder
+    ) = withContext(Dispatchers.Default) {
+        Log.v(TAG, ">>> performCompressionAndChat() IN, processing ${historyToProcess.size} messages")
+        Log.i(TAG, "Initiating context compression...")
 
-        if (compressedHistory != null && compressedHistory.isNotEmpty()) {
-            // 压缩成功，重置历史并重建会话
-            _historyMessages.clear()
+        // 清空当前消息并显示“上下文压缩中”
+        _currentMessage.value = context.getString(R.string.ai_compressing)
 
-            conversation?.close()
-            Log.i(TAG, ">>> RE-PASSING CONTEXT TO LLM ENGINE (After Compression) <<<")
-            Log.d(TAG, "SYSTEM_INSTRUCTION:\n$_systemPrompt")
-            Log.d(TAG, "COMPRESSED_HISTORY (User):\n$compressedHistory")
-            Log.d(TAG, "ASSISTANT_ACK: Acknowledged")
+        // 直接使用传入的历史，不再从全局 _historyMessages 中获取（避免包含当前轮次的干扰）
+        val (prefix, toCompress, recent) = compressor?.partitionMessages(historyToProcess)
+            ?: Triple(emptyList(), historyToProcess, emptyList())
 
-            val conversationConfig = ConversationConfig(
-                systemInstruction = Contents.of(_systemPrompt),
-                initialMessages = listOf(
-                    Message.user(compressedHistory),
-                    Message.model("Acknowledged"),
-                ),
-                samplerConfig = SamplerConfig(topK = 10, topP = 0.95, temperature = 0.8),
+        Log.d(TAG, "Partitioning history: prefix=${prefix.size}, toCompress=${toCompress.size}, recent=${recent.size}")
+
+        // 仅压缩中间部分的对话
+        val compressedSnapshot = compressor?.compressHistory(toCompress)
+
+        if (compressedSnapshot != null && compressedSnapshot.isNotEmpty()) {
+            Log.i(TAG, "✅ Context compressed successfully. Rebuilding history and conversation.")
+
+            // 1. 构建新的历史基准 (不含当前 userMessage)
+            val compressedHistory = mutableListOf<ChatMessage>()
+            compressedHistory.addAll(prefix)
+            compressedHistory.add(ChatMessage("user", "[World State Snapshot]\n$compressedSnapshot"))
+            compressedHistory.addAll(recent)
+
+            // 2. 调用 restoreHistory 恢复对话状态并打印日志
+            restoreHistory(
+                compressedHistory,
+                samplerConfig = SamplerConfig(topK = 10, topP = 0.95, temperature = 0.8)
             )
-            conversation = engine?.createConversation(conversationConfig)
 
-            // 重新发送当前消息
+            // 3. 将当前 userMessage 补回到全局历史记录中
+            _historyMessages.add(ChatMessage("user", userMessage))
+
+            // 4. 发送前清空压缩提示
+            _currentMessage.value = ""
+
+            Log.d(TAG, "Re-sending user message: $userMessage")
+            // 5. 重新发送当前消息
             conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
-                _currentMessage.value += partialResponse.toString()
-                responseBuilder.append(partialResponse.toString())
+                val partial = partialResponse.toString()
+                _currentMessage.update { it + partial }
+                responseBuilder.append(partial)
             }
         } else {
+            Log.e(TAG, "❌ Context compression failed or returned empty. Falling back to original conversation.")
             // 压缩失败，尝试继续原始对话
             conversation?.sendMessageAsync(userMessage)?.collect { partialResponse ->
-                _currentMessage.value += partialResponse.toString()
-                responseBuilder.append(partialResponse.toString())
+                val partial = partialResponse.toString()
+                _currentMessage.update { it + partial }
+                responseBuilder.append(partial)
             }
         }
-        Log.v(TAG, "<<< performCompressionAndChat() completed with response:\n${responseBuilder.toString()}")
+        Log.v(TAG, "<<< performCompressionAndChat() OUT")
     }
 
     /**
      * 从消息列表恢复对话历史。
      */
-    fun restoreHistory(messages: List<ChatMessage>) {
+    suspend fun restoreHistory(
+        messages: List<ChatMessage>,
+        samplerConfig: SamplerConfig? = null
+    ) = withContext(Dispatchers.Default) {
         Log.v(TAG, ">>> restoreHistory() called with ${messages.size} messages")
         try {
             _historyMessages.clear()
@@ -529,7 +563,8 @@ class LiteRtLmService @Inject constructor(
                     } else {
                         Message.model(msg.content)
                     }
-                }
+                },
+                samplerConfig = samplerConfig
             )
 
             conversation?.close()
@@ -546,7 +581,7 @@ class LiteRtLmService @Inject constructor(
     /**
      * 重置对话，清空所有历史上下文。
      */
-    fun resetConversation() {
+    suspend fun resetConversation() = withContext(Dispatchers.Default) {
         Log.v(TAG, ">>> resetConversation() called")
         try {
             _historyMessages.clear()
@@ -572,17 +607,19 @@ class LiteRtLmService @Inject constructor(
      * 释放所有引擎资源。
      */
     fun dispose() {
-        try {
-            conversation?.close()
-            engine?.close()
-            compressor?.close()
-            engine = null
-            conversation = null
-            compressor = null
-            _isInitialized.value = false
-            Log.v(TAG, "<<< dispose() completed, all resources released")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error disposing engine", e)
+        serviceScope.launch {
+            try {
+                conversation?.close()
+                engine?.close()
+                compressor?.close()
+                engine = null
+                conversation = null
+                compressor = null
+                _isInitialized.value = false
+                Log.v(TAG, "<<< dispose() completed, all resources released")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error disposing engine", e)
+            }
         }
     }
 

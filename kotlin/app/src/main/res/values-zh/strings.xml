@@ -10,6 +10,7 @@
     <string name="chat_placeholder">输入消息...</string>
     <string name="send">发送</string>
     <string name="ai_thinking">AI 正在思考...</string>
+    <string name="ai_compressing">上下文压缩中...</string>
     <string name="message_long_press_hint">消息，长按复制</string>
     <string name="copy_text">复制文本</string>
     <string name="copied_to_clipboard">已复制到剪贴板</string>
@@ -92,6 +93,30 @@
     <string name="created_at">创建于：%s</string>
     <string name="active_at">活跃于：%s</string>
     <string name="delete">删除</string>
+
+    <!-- History Edit Screen -->
+    <string name="history_edit_title">编辑历史</string>
+    <string name="resume_from_here">从此处继续</string>
+    <string name="no_messages_in_history">该历史记录中没有消息。</string>
+    <string name="confirm_deletion_title">确认删除</string>
+    <string name="delete_from_here_confirm">删除此消息及其后所有消息？此操作不可撤销。</string>
+    <string name="delete_from_here">从此处删除</string>
+    <string name="resume">恢复</string>
+    <string name="just_now">刚刚</string>
+    <string name="hours_ago">%d 小时前</string>
+    <string name="messages_count">%d 条消息</string>
+
+    <string name="model_moved_and_selected">模型已移动到 TextAdventure/models 并自动选择。</string>
+    <string name="model_download_complete_manual">下载完成。请手动将文件移动到 TextAdventure/models 文件夹。</string>
+    <string name="engine_init_failed_with_error">引擎初始化失败：%s</string>
+    <string name="selected_model_prefix">已选择模型：%s</string>
+    <string name="model_selection_failed_with_error">选择模型失败：%s</string>
+    <string name="downloading_model">正在下载模型</string>
+    <string name="downloading_model_description">正在从 %2$s 下载 %1$s</string>
+    <string name="download_started_auto_move">下载已开始。完成后将自动移动到模型目录。</string>
+    <string name="download_failed_with_error">下载失败：%s</string>
+    <string name="role_user">用户</string>
+    <string name="role_assistant">AI</string>
 
     <!-- Messages -->
     <string name="model_download_start">开始下载模型...</string>

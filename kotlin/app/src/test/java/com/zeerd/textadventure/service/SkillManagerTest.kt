@@ -112,7 +112,7 @@ class PromptInjectorTest {
         )
 
         val injector = PromptInjector()
-        val prompt = injector.buildInstrumentedPrompt(context, skills)
+        val prompt = injector.buildInstrumentedPrompt(skills)
 
         assertThat(prompt).contains("test-skill")
         assertThat(prompt).contains("You are an AI assistant")
@@ -124,7 +124,7 @@ class PromptInjectorTest {
         val skills = emptyList<Skill>()
 
         val injector = PromptInjector()
-        val prompt = injector.buildInstrumentedPrompt(context, skills)
+        val prompt = injector.buildInstrumentedPrompt(skills)
 
         assertThat(prompt).contains("You are an AI assistant")
         assertThat(prompt).contains("(No skills available)")

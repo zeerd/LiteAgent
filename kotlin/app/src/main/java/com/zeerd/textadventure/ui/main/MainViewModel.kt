@@ -38,7 +38,7 @@ class MainViewModel @Inject constructor(
     private val storyHistoryRepository: StoryHistoryRepository,
     private val appSettingsRepository: AppSettingsRepository,
     private val liteRtLmService: LiteRtLmService,
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     companion object {
@@ -59,7 +59,6 @@ class MainViewModel @Inject constructor(
 
     init {
         Log.d(TAG, "Initializing MainViewModel")
-        setupQuickActions()
         observeSessionMessages()
         observeLatestStory()
 
@@ -224,8 +223,6 @@ class MainViewModel @Inject constructor(
             }
         }
     }
-
-    private fun setupQuickActions() {}
 
     /**
      * 清空当前聊天界面。
@@ -417,7 +414,7 @@ class MainViewModel @Inject constructor(
     /**
      * 将 assets 中的技能定义提取到内部存储。
      */
-    private fun extractSkillsFromAssets(): String {
+    private suspend fun extractSkillsFromAssets(): String = withContext(Dispatchers.IO) {
         val skillsDir = File(context.filesDir, "skills")
         if (!skillsDir.exists()) skillsDir.mkdirs()
 
@@ -431,10 +428,10 @@ class MainViewModel @Inject constructor(
                     FileOutputStream(skillFile).use { output -> input.copyTo(output) }
                 }
             }
-            return skillsDir.absolutePath
+            skillsDir.absolutePath
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting skills", e)
-            return ""
+            ""
         }
     }
 

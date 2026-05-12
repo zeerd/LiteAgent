@@ -35,7 +35,7 @@ class SettingsViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val storySettingsDataSource: StorySettingsDataSource,
     private val liteRtLmService: LiteRtLmService,
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -157,9 +157,9 @@ class SettingsViewModel @Inject constructor(
                             selectedModelName = fileName
                         )}
                         saveSettings()
-                        showMessage("Model moved to TextAdventure/models and auto-selected.")
+                        showMessage(context.getString(R.string.model_moved_and_selected))
                     } else {
-                        showMessage("Download complete. Please manually move the file to TextAdventure/models")
+                        showMessage(context.getString(R.string.model_download_complete_manual))
                     }
                 }
             }
@@ -233,7 +233,7 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
             } catch (e: Exception) {
-                showMessage("Failed to initialize engine: ${e.message}")
+                showMessage(context.getString(R.string.engine_init_failed_with_error, e.message ?: ""))
             }
         }
 
@@ -279,9 +279,9 @@ class SettingsViewModel @Inject constructor(
                     selectedModelName = fileName
                 )}
 
-                showMessage("Selected model: $fileName")
+                showMessage(context.getString(R.string.selected_model_prefix, fileName))
             } catch (e: Exception) {
-                showMessage("Failed to select model: ${e.message}")
+                showMessage(context.getString(R.string.model_selection_failed_with_error, e.message ?: ""))
             }
         }
     }
@@ -314,9 +314,15 @@ class SettingsViewModel @Inject constructor(
 
         val fileName = "gemma-4-E2B-it.litertlm"
 
+        val backendLabel = if (backend == "huggingface") {
+            context.getString(R.string.model_backend_huggingface)
+        } else {
+            context.getString(R.string.model_backend_modelscope)
+        }
+
         val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle("Downloading Model")
-            .setDescription("Downloading $fileName from $backend")
+            .setTitle(context.getString(R.string.downloading_model))
+            .setDescription(context.getString(R.string.downloading_model_description, fileName, backendLabel))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverMetered(true)
             .setAllowedOverRoaming(true)
@@ -325,9 +331,9 @@ class SettingsViewModel @Inject constructor(
         try {
             val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             lastDownloadId = downloadManager.enqueue(request)
-            showMessage("Download started. It will be auto-moved upon completion.")
+            showMessage(context.getString(R.string.download_started_auto_move))
         } catch (e: Exception) {
-            showMessage("Download failed: ${e.message}")
+            showMessage(context.getString(R.string.download_failed_with_error, e.message ?: ""))
         }
     }
 

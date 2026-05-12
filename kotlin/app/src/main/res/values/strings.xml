@@ -10,6 +10,7 @@
     <string name="chat_placeholder">Type a message...</string>
     <string name="send">Send</string>
     <string name="ai_thinking">AI is thinking...</string>
+    <string name="ai_compressing">Context compressing...</string>
     <string name="message_long_press_hint">Message, long press to copy</string>
     <string name="copy_text">Copy text</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
@@ -92,6 +93,30 @@
     <string name="created_at">Created: %s</string>
     <string name="active_at">Active: %s</string>
     <string name="delete">Delete</string>
+
+    <!-- History Edit Screen -->
+    <string name="history_edit_title">Edit History</string>
+    <string name="resume_from_here">Resume from here</string>
+    <string name="no_messages_in_history">No messages in this history.</string>
+    <string name="confirm_deletion_title">Confirm Deletion</string>
+    <string name="delete_from_here_confirm">Delete this message and all subsequent messages? This cannot be undone.</string>
+    <string name="delete_from_here">Delete from here</string>
+    <string name="resume">Resume</string>
+    <string name="just_now">Just now</string>
+    <string name="hours_ago">%dh ago</string>
+    <string name="messages_count">%d messages</string>
+
+    <string name="model_moved_and_selected">Model moved to TextAdventure/models and auto-selected.</string>
+    <string name="model_download_complete_manual">Download complete. Please manually move the file to TextAdventure/models</string>
+    <string name="engine_init_failed_with_error">Failed to initialize engine: %s</string>
+    <string name="selected_model_prefix">Selected model: %s</string>
+    <string name="model_selection_failed_with_error">Failed to select model: %s</string>
+    <string name="downloading_model">Downloading Model</string>
+    <string name="downloading_model_description">Downloading %1$s from %2$s</string>
+    <string name="download_started_auto_move">Download started. It will be auto-moved upon completion.</string>
+    <string name="download_failed_with_error">Download failed: %s</string>
+    <string name="role_user">USER</string>
+    <string name="role_assistant">AI</string>
 
     <!-- Messages -->
     <string name="model_download_start">Starting model download...</string>

@@ -12,9 +12,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.zeerd.textadventure.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import com.zeerd.textadventure.data.db.StoryHistoryEntity
@@ -36,12 +38,12 @@ fun HistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Story History") },
+                title = { Text(stringResource(R.string.history_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 }
@@ -79,12 +81,12 @@ fun HistoryScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "No Story History",
+                                    text = stringResource(R.string.no_history),
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Start a new story to begin your adventure.",
+                                    text = stringResource(R.string.welcome_message_text),
                                     style = MaterialTheme.typography.bodyMedium,
                                     textAlign = TextAlign.Center
                                 )
@@ -139,13 +141,13 @@ fun StoryHistoryCard(entry: StoryHistoryEntity) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${entry.messageCount} messages • ${formatLastActive(entry.lastActive)}",
+                    text = "${stringResource(R.string.messages_count, entry.messageCount)} • ${formatLastActive(entry.lastActive)}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             Icon(
                 imageVector = Icons.Default.ArrowForward,
-                contentDescription = "Resume"
+                contentDescription = stringResource(R.string.resume)
             )
         }
     }
@@ -158,5 +160,5 @@ fun StoryHistoryCard(entry: StoryHistoryEntity) {
 fun formatLastActive(timestamp: Long): String {
     val duration = System.currentTimeMillis() - timestamp
     val hours = duration / 3600000
-    return if (hours < 1) "Just now" else "${hours}h ago"
+    return if (hours < 1) stringResource(R.string.just_now) else stringResource(R.string.hours_ago, hours.toInt())
 }

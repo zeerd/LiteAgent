@@ -1,5 +1,7 @@
 # Text Adventure
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zeerd/TextAdventure)
+
 AI-powered Text Adventure Game.
 
 

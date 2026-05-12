@@ -31,7 +31,7 @@ class NewStoryViewModel @Inject constructor(
     val storyHistoryRepository: StoryHistoryRepository,
     private val appSettingsRepository: AppSettingsRepository,
     private val liteRtLmService: LiteRtLmService,
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) : ViewModel() {
 
     companion object {
@@ -244,23 +244,13 @@ class NewStoryViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 加载现有的历史故事并跳转。
-     */
+    // 加载现有的历史故事并跳转到编辑页面
     fun onLoadStory(story: StoryHistoryEntity) {
-        // 立即发送导航信号
-        _uiState.update { it.copy(storyStarted = true, newStoryId = story.id) }
+        _uiState.update { it.copy(navigateToHistoryId = story.id) }
+    }
 
-        // 在后台更新最后活跃时间以触发 MainViewModel 的观察者
-        viewModelScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    storyHistoryRepository.updateStory(story.copy(lastActive = System.currentTimeMillis()))
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to update last active: ${e.message}")
-            }
-        }
+    fun onNavigatedToHistory() {
+        _uiState.update { it.copy(navigateToHistoryId = null) }
     }
 }
 
@@ -338,5 +328,10 @@ data class NewStoryUiState(
      * - true: 表示用户已选择有效背景文件且模型就绪，"开始故事"按钮启用
      * - false: "开始故事"按钮被禁用（尚未选择文件或模型未就绪）
      */
-    val canStartStory: Boolean = false
+    val canStartStory: Boolean = false,
+
+    /**
+     * 跳转到历史编辑页面的故事 ID。
+     */
+    val navigateToHistoryId: String? = null
 )

@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.zeerd.textadventure.R
+import com.zeerd.textadventure.navigation.Destinations
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -31,6 +32,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun NewStoryScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToHistoryEdit: (String) -> Unit,
     viewModel: NewStoryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -40,10 +42,11 @@ fun NewStoryScreen(
         viewModel.onNewStoryDismiss()
     }
 
-    // 当故事成功启动后，自动返回主界面（主界面会观察到最新故事的变化）
-    LaunchedEffect(uiState.storyStarted) {
-        if (uiState.storyStarted) {
-            onNavigateBack()
+    // 当需要跳转到历史编辑页面时触发
+    LaunchedEffect(uiState.navigateToHistoryId) {
+        uiState.navigateToHistoryId?.let { storyId ->
+            onNavigateToHistoryEdit(storyId)
+            viewModel.onNavigatedToHistory()
         }
     }
 
